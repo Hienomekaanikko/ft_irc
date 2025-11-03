@@ -41,7 +41,10 @@ void Server::start() {
         throw std::runtime_error("Failed to set socket options");
     }
     
-    fcntl(_serverSocket, F_SETFL, O_NONBLOCK);
+    if (fcntl(_serverSocket, F_SETFL, O_NONBLOCK) < 0) {
+        close(_serverSocket);
+        throw std::runtime_error("Failed to set socket to non-blocking mode");
+    }
     
     struct sockaddr_in serverAddr;
     std::memset(&serverAddr, 0, sizeof(serverAddr));
@@ -103,7 +106,10 @@ void Server::acceptNewClient() {
         return;
     }
     
-    fcntl(clientSocket, F_SETFL, O_NONBLOCK);
+    if (fcntl(clientSocket, F_SETFL, O_NONBLOCK) < 0) {
+        close(clientSocket);
+        return;
+    }
     
     std::string hostname = inet_ntoa(clientAddr.sin_addr);
     Client* client = new Client(clientSocket, hostname);

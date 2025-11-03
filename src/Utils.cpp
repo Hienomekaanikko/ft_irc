@@ -34,7 +34,7 @@ std::string trim(const std::string& str) {
 std::string toUpper(const std::string& str) {
     std::string result = str;
     for (size_t i = 0; i < result.length(); i++) {
-        result[i] = std::toupper(result[i]);
+        result[i] = std::toupper(static_cast<unsigned char>(result[i]));
     }
     return result;
 }
