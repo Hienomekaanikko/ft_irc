@@ -1,40 +1,48 @@
-NAME		= ircserv
-CC			= c++
-CFLAGS		= -Wall -Wextra -Werror -std=c++98
-RM			= rm -rf
+# Project Name
+NAME = ircserv
 
-SRC_DIR		= src
-INC_DIR		= inc
-OBJ_DIR		= obj
+# Compiler and flags
+CC 		= c++
+STD 	= -std=c++11
+CFLAGS 	= -Wall -Wextra -Werror ${STD} -MMD
 
-SRCS		= $(SRC_DIR)/main.cpp \
-			  $(SRC_DIR)/Server.cpp \
-			  $(SRC_DIR)/Client.cpp \
-			  $(SRC_DIR)/Channel.cpp \
-			  $(SRC_DIR)/Commands.cpp \
-			  $(SRC_DIR)/Utils.cpp
+# Header files
+HEADERS = -I ./includes
 
-OBJS		= $(SRCS:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
+# Directories
+SRC_DIR = ./src
+OBJ_DIR = ./obj
 
-INC			= -I$(INC_DIR)
+# Source files
+SRCS = 	$(SRC_DIR)/main.cpp
 
+# Object files
+OBJS = $(SRCS:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
+
+# Targets
 all: $(NAME)
 
-$(OBJ_DIR):
-	@mkdir -p $(OBJ_DIR)
-
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
-	$(CC) $(CFLAGS) $(INC) -c $< -o $@
-
+# Build the executable
 $(NAME): $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o $(NAME)
+	$(CC) $(CFLAGS) -o $(NAME) $(OBJS)
+
+# Compile source files to object files
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
+	@mkdir -p $(dir $@)
+	@echo "Compiling $<..."
+	@$(CC) $(CFLAGS) $(HEADERS) -c $< -o $@
+
+# Include dependency files
+-include $(OBJS:.o=.d)
 
 clean:
-	$(RM) $(OBJ_DIR)
+	@rm -rf $(OBJ_DIR)
+	@echo "Objects directory and objects removed"
 
 fclean: clean
-	$(RM) $(NAME)
+	@rm -f $(NAME)
+	@echo "Everything removed"
 
-re: fclean all
+re: fclean all	
 
 .PHONY: all clean fclean re
