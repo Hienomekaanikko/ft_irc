@@ -6,11 +6,12 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/03 14:12:16 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/04 10:12:21 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/04 15:25:45 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Server.hpp"
+#include "Client.hpp"
 
 void Server::setServerData() {
     _serverData.sin_family = AF_INET;
@@ -25,18 +26,41 @@ sockaddr_in Server::getServerData() {
 Server::Server(const int port, const std::string password): _port(port), _password(password){
     setServerData();
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    
     bind(serverSocket, (struct sockaddr*)&_serverData, sizeof(_serverData));
-    
+    listen(serverSocket, 5);
+    pollfd serverPoll{};
+    serverPoll.fd = serverSocket;
+    serverPoll.events = POLLIN;
+    _pollfds.push_back(serverPoll);
     while (1) {
-        listen(serverSocket, 5);
-        int clientSocket = accept(serverSocket, nullptr, nullptr);
-        if (clientSocket < 0)
-            continue ;
-        char buffer[1024] = { 0 };
-        while (1) { 
-            recv(clientSocket, buffer, sizeof(buffer), 0);
-            std::cout << "Message from client: " << buffer << std::endl;
+        int timeout = 5000;
+        int ret = poll(_pollfds.data(), _pollfds.size(), timeout);
+        if (ret > 0) {
+            for (auto& pfd : _pollfds) {
+                 if (pfd.fd == serverSocket && (pfd.revents & POLLIN)) {
+                    int clientSocket = accept(serverSocket, nullptr, nullptr);
+                    if (clientSocket < 0) {
+                        perror("accept");
+                        continue;
+                    }
+                    std::cout << "New client connected: " << clientSocket << std::endl;
+                    _clients.push_back(clientSocket);
+                    pollfd newPoll{};
+                    newPoll.fd = clientSocket;
+                    newPoll.events = POLLIN;
+                    _pollfds.push_back(newPoll);
+                }
+                else if (pfd.revents & POLLIN) {
+                    std::cout << "Data is available on fd " << pfd.fd << "!\n";
+                    char buf[100] = { 0 };
+                    recv(pfd.fd, buf, sizeof(buf), 0);
+                    std::cout << "Message from client: " << buf << std::endl;
+                    for (auto& client: _clients) {
+                        if (client.getClientFd() != pfd.fd)
+                            send(client.getClientFd(), buf, sizeof(buf), 0);
+                    }
+                }
+            }
         }
     }
     close(serverSocket);

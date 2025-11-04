@@ -1,23 +1,26 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   Client.cpp                                         :+:      :+:    :+:   */
+/*   Client.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/11/04 09:53:37 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/04 11:25:08 by msuokas          ###   ########.fr       */
+/*   Created: 2025/11/04 11:06:40 by msuokas           #+#    #+#             */
+/*   Updated: 2025/11/04 11:21:28 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "Client.hpp"
+#pragma once
 
-Client::Client(int fd): _clientFd(fd) {}
+#include <netinet/in.h>
 
-void Client::setClientFd(const int fd) {
-    _clientFd = fd;
-}
+class Client {
+    private:
+        int _clientFd;
+    public:
+        Client(int _clientFd);
+        void setClientFd(int fd);
+        int getClientFd();
 
-int Client::getClientFd() {
-    return _clientFd;
-}
+        //void sendMsg();
+};

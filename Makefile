@@ -1,6 +1,6 @@
 CC = c++
 FLAGS = -Wall -Werror -Wextra
-SRC = main.cpp Server.cpp
+SRC = main.cpp Server.cpp Client.cpp
 OBJ = $(SRC:.cpp=.o)
 NAME = ircserv
 RM = rm -f
