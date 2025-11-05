@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/04 09:53:37 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/05 15:56:23 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/05 16:13:25 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -60,5 +60,5 @@ void Client::setMsg(char msg[]) {
     std::string cleaned_msg = msg;
     while (!cleaned_msg.empty() && (cleaned_msg.back() == '\n' || cleaned_msg.back() == '\r'))
         cleaned_msg.pop_back();
-    _msg = _username + ": " + cleaned_msg + "\n"; 
+    _msg = "<" + _username + ">" + ": " + cleaned_msg + "\n"; 
 }
