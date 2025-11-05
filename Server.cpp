@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/03 14:12:16 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/04 15:25:45 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/05 10:21:08 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,6 +21,32 @@ void Server::setServerData() {
 
 sockaddr_in Server::getServerData() {
     return _serverData;
+}
+
+void setUserData(int clientSocket, Client newClient) {
+    char buffer[256];
+
+    std::string prompt = "Set username: ";
+    send(clientSocket, prompt.c_str(), prompt.size(), 0);
+
+    memset(buffer, 0, sizeof(buffer));
+    ssize_t bytes = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
+    if (bytes <= 0) {
+        std::cerr << "Didn't receive username" << "\n";
+    }
+    std::string username(buffer);
+    newClient.setUsername(username);
+
+    prompt = "Set nickname: ";
+    send(clientSocket, prompt.c_str(), prompt.size(), 0);
+    
+    memset(buffer, 0, sizeof(buffer));
+    bytes = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
+    if (bytes <= 0) {
+        std::cerr << "Didnt receive nickname" << "\n";
+    }
+    std::string nickname(buffer);
+    newClient.setNickname(nickname);
 }
 
 Server::Server(const int port, const std::string password): _port(port), _password(password){
@@ -39,16 +65,16 @@ Server::Server(const int port, const std::string password): _port(port), _passwo
             for (auto& pfd : _pollfds) {
                  if (pfd.fd == serverSocket && (pfd.revents & POLLIN)) {
                     int clientSocket = accept(serverSocket, nullptr, nullptr);
-                    if (clientSocket < 0) {
-                        perror("accept");
+                    if (clientSocket < 0)
                         continue;
-                    }
                     std::cout << "New client connected: " << clientSocket << std::endl;
-                    _clients.push_back(clientSocket);
+                    Client newClient(clientSocket);
+                    _clients.push_back(newClient);
                     pollfd newPoll{};
                     newPoll.fd = clientSocket;
                     newPoll.events = POLLIN;
                     _pollfds.push_back(newPoll);
+                    setUserData(clientSocket, newClient);
                 }
                 else if (pfd.revents & POLLIN) {
                     std::cout << "Data is available on fd " << pfd.fd << "!\n";
