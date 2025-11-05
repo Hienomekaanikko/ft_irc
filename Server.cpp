@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/03 14:12:16 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/05 14:01:53 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/05 16:04:51 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -61,28 +61,33 @@ Server::Server(const int port, const std::string password): _port(port), _passwo
                     send(clientSocket, "Set username: ", sizeof("Set username: "), 0);
                 }
                 else if (pfd.revents & POLLIN && pfd.fd) {
-                    char buf[100] = { 0 };
-                    recv(pfd.fd, buf, sizeof(buf), 0);
-                    Client *dude = nullptr;
-                    dude = findClientByFd(pfd.fd);
-                    if (dude && dude->getState() == WAITING_USERNAME) {
-                        std::string username(buf);
-                        dude->setUsername(username);
-                        dude->setState(WAITING_NICKNAME);
-                        send(pfd.fd, "Set nickname: ", sizeof("Set nickname: "), 0);
-                    }
-                    else if (dude && dude->getState() == WAITING_NICKNAME) {
-                        std::string nickname(buf);
-                        dude->setNickname(nickname);
-                        dude->setState(READY);
-                        send(pfd.fd, "Welcome to the server!\n", sizeof("Welcome to the server!"), 0);
-                    }
-                    else {
-                        if (dude)
-                            std::cout << dude->getUsername() << ": " << buf;
-                        for (auto& client: _clients) {
-                            if (client.getClientFd() != pfd.fd) {
-                                send(client.getClientFd(), buf, sizeof(buf), 0);
+                    char buf[100];
+                    int len = recv(pfd.fd, buf, sizeof(buf), 0);
+                    Client *dude;
+                    if (len > 0)
+                    {
+                        buf[len] = '\0';
+                        dude = findClientByFd(pfd.fd);
+                        dude->setMsg(buf);
+                        if (dude && dude->getState() == WAITING_USERNAME) {
+                            std::string username(buf);
+                            dude->setUsername(username);
+                            dude->setState(WAITING_NICKNAME);
+                            send(pfd.fd, "Set nickname: ", sizeof("Set nickname: "), 0);
+                        }
+                        else if (dude && dude->getState() == WAITING_NICKNAME) {
+                            std::string nickname(buf);
+                            dude->setNickname(nickname);
+                            dude->setState(READY);
+                            send(pfd.fd, "Welcome to the server!\n", sizeof("Welcome to the server!"), 0);
+                        }
+                        else {
+                            for (auto& client: _clients) {
+                                if (client.getClientFd() != pfd.fd) {
+                                    std::string msg = dude->getMsg().c_str();
+                                    std::cout << "Message is: " << dude->getMsg().c_str();
+                                    send(client.getClientFd(), msg.c_str(), msg.size(), 0);
+                                }
                             }
                         }
                     }
