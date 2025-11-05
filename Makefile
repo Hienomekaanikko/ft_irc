@@ -10,6 +10,8 @@ all: $(NAME)
 $(NAME): $(OBJ)
 	$(CC) $(FLAGS) $(OBJ) -o $(NAME)
 
+re: fclean all
+
 clean:
 	$(RM) $(OBJ)
 

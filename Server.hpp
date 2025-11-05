@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/03 16:07:25 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/04 12:57:16 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/05 16:43:07 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,6 +21,8 @@
 #include <unistd.h>
 #include "Client.hpp"
 #include <poll.h>
+#include <fcntl.h>
+#include "Channel.hpp"
 
 class Server {
     private:
@@ -29,9 +31,11 @@ class Server {
         std::string _password;
         std::vector<Client> _clients;
         std::vector<struct pollfd> _pollfds;
+        std::vector<Channel> _channels;
         sockaddr_in _serverData;
     public:
         Server(const int _Port, const std::string _password);
         void setServerData();
         sockaddr_in getServerData();
+        Client* findClientByFd(int fd);
 };
