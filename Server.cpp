@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/03 14:12:16 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/05 10:21:08 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/05 12:13:40 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,39 +19,22 @@ void Server::setServerData() {
     _serverData.sin_addr.s_addr = INADDR_ANY;
 }
 
-sockaddr_in Server::getServerData() {
-    return _serverData;
+Client* Server::findClientByFd(int fd) {
+    for (auto& client : _clients) {
+        if (client.getClientFd() == fd)
+            return &client;
+    }
+    return nullptr;
 }
 
-void setUserData(int clientSocket, Client newClient) {
-    char buffer[256];
-
-    std::string prompt = "Set username: ";
-    send(clientSocket, prompt.c_str(), prompt.size(), 0);
-
-    memset(buffer, 0, sizeof(buffer));
-    ssize_t bytes = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-    if (bytes <= 0) {
-        std::cerr << "Didn't receive username" << "\n";
-    }
-    std::string username(buffer);
-    newClient.setUsername(username);
-
-    prompt = "Set nickname: ";
-    send(clientSocket, prompt.c_str(), prompt.size(), 0);
-    
-    memset(buffer, 0, sizeof(buffer));
-    bytes = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-    if (bytes <= 0) {
-        std::cerr << "Didnt receive nickname" << "\n";
-    }
-    std::string nickname(buffer);
-    newClient.setNickname(nickname);
+sockaddr_in Server::getServerData() {
+    return _serverData;
 }
 
 Server::Server(const int port, const std::string password): _port(port), _password(password){
     setServerData();
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    fcntl(serverSocket, F_SETFL, O_NONBLOCK);
     bind(serverSocket, (struct sockaddr*)&_serverData, sizeof(_serverData));
     listen(serverSocket, 5);
     pollfd serverPoll{};
@@ -65,6 +48,7 @@ Server::Server(const int port, const std::string password): _port(port), _passwo
             for (auto& pfd : _pollfds) {
                  if (pfd.fd == serverSocket && (pfd.revents & POLLIN)) {
                     int clientSocket = accept(serverSocket, nullptr, nullptr);
+                    fcntl(clientSocket, F_SETFL, O_NONBLOCK);
                     if (clientSocket < 0)
                         continue;
                     std::cout << "New client connected: " << clientSocket << std::endl;
@@ -74,16 +58,29 @@ Server::Server(const int port, const std::string password): _port(port), _passwo
                     newPoll.fd = clientSocket;
                     newPoll.events = POLLIN;
                     _pollfds.push_back(newPoll);
-                    setUserData(clientSocket, newClient);
+                    send(clientSocket, "Set username: ", sizeof("Set username: "), 0);
                 }
                 else if (pfd.revents & POLLIN) {
-                    std::cout << "Data is available on fd " << pfd.fd << "!\n";
                     char buf[100] = { 0 };
                     recv(pfd.fd, buf, sizeof(buf), 0);
+                    Client *dude = findClientByFd(pfd.fd);
+                    if (dude->getState() == WAITING_USERNAME) {
+                        std::string username(buf);
+                        dude->setUsername(username);
+                        dude->setState(WAITING_NICKNAME);
+                        send(pfd.fd, "Set nickname: ", sizeof("Set nickname: "), 0);
+                    }
+                    else if (dude->getState() == WAITING_NICKNAME) {
+                        std::string nickname(buf);
+                        dude->setNickname(nickname);
+                        dude->setState(READY);
+                        send(pfd.fd, "Welcome to the server!", sizeof("Welcome to the server!"), 0);
+                    }
                     std::cout << "Message from client: " << buf << std::endl;
                     for (auto& client: _clients) {
-                        if (client.getClientFd() != pfd.fd)
+                        if (client.getClientFd() != pfd.fd) {
                             send(client.getClientFd(), buf, sizeof(buf), 0);
+                        }
                     }
                 }
             }
