@@ -1,10 +1,42 @@
 #pragma once
 
 #include "Client.hpp"
+
+// #include <string>
 #include <vector>
+#include <unordered_map>
+#include <cstddef>
 #include <poll.h>
+#include <netinet/in.h>
 
+class Server
+{
+public:
+	Server(int port, const std::string &password);
 
-class Server {
+	// Disabling copy constructor and assignment operator, 1 server only
+	Server(const Server &other) = delete;
+	Server &operator=(const Server &other) = delete;
+	~Server();
 
+	void run();
+
+private:
+	static const int BUFFER_SIZE = 1024;
+
+	void initSocket();
+	void mainLoop();
+	void handleNewConnection();
+	void handleClientRead(std::size_t index);
+	void handleClientWrite(std::size_t index);
+	void processLine(int clientFd, const std::string &line);
+	void setNonBlocking(int fd);
+
+	int _port;
+	std::string _password;
+	int _serverFd{-1};
+	struct sockaddr_in _address{};
+	socklen_t _addrLen;
+	std::vector<pollfd> _fds;				  // index 0 = server
+	std::unordered_map<int, Client> _clients; // fd -> Client
 };
