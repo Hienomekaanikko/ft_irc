@@ -2,8 +2,8 @@
 
 #include "Client.hpp"
 
-// #include <string>
 #include <vector>
+#include <string_view>
 #include <unordered_map>
 #include <cstddef>
 #include <poll.h>
@@ -32,7 +32,7 @@ private:
 	void handleNewConnection();
 	void handleClientRead(std::size_t index);
 	void handleClientWrite(std::size_t index);
-	void processLine(int clientFd, const std::string &line);
+	void processLine(int clientFd, std::string_view line);
 
 	int 							_port;
 	std::string 					_password;

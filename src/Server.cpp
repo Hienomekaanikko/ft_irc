@@ -31,6 +31,7 @@ Server::~Server()
 void Server::run()
 {
 	std::cout << "Server is running..." << std::endl;
+	mainLoop(); // Enter the main server loop
 }
 
 /// Member functions ///
@@ -170,7 +171,7 @@ void Server::handleClientRead(std::size_t index)
 	while (true)
 	{
 		ssize_t bytes = ::recv(clientFd, buffer, BUFFER_SIZE, 0);
-		if (bytes < 0)
+		if (bytes > 0)
 		{
 			client.getReadBuffer().append(buffer, static_cast<std::size_t>(bytes));
 
