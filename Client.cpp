@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/04 09:53:37 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/10 11:29:51 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/10 15:44:20 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -65,4 +65,5 @@ void Client::setMsg(char msg[]) {
 
 void Client::joinChannel(std::string& channelName) {
     this->_channels.push_back(channelName);
+    std::cout << getUsername() << " joined channel " << channelName << std::endl;
 }
