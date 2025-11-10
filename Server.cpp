@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/03 14:12:16 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/05 16:32:28 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/10 11:35:39 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -86,7 +86,7 @@ Server::Server(const int port, const std::string password): _port(port), _passwo
                             for (auto& client: _clients) {
                                 if (client.getClientFd() != pfd.fd) {
                                     std::string msg = userPtr->getMsg().c_str();
-                                    std::cout << msg;
+                                    std::cout << "this is the message: " << msg;
                                     send(client.getClientFd(), msg.c_str(), msg.size(), 0);
                                 }
                             }
