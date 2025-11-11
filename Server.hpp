@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/03 16:07:25 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/05 16:43:07 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/10 16:12:56 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,6 +23,11 @@
 #include <poll.h>
 #include <fcntl.h>
 #include "Channel.hpp"
+#include <algorithm>
+
+enum Commands {
+    JOIN,
+};
 
 class Server {
     private:
@@ -35,7 +40,10 @@ class Server {
         sockaddr_in _serverData;
     public:
         Server(const int _Port, const std::string _password);
+        void addChannel(std::string& channelName);
+        void joinHandler(std::string& channelName, Client& user);
         void setServerData();
+        void msgHandler(Client& sender, std::string& msg);
         sockaddr_in getServerData();
         Client* findClientByFd(int fd);
 };

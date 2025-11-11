@@ -6,12 +6,33 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/03 14:12:16 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/05 16:32:28 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/11 10:15:12 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "Server.hpp"
-#include "Client.hpp"
+
+void Server::addChannel(std::string& channelName) {
+    _channels.push_back(channelName);
+}
+
+void Server::joinHandler(std::string& channelName, Client& user) {
+    std::cout << channelName << std::endl;
+    if (!_channels.empty()) {
+        for (auto& i : _channels) {
+            if (i.getChannelName() == channelName)
+            {
+                user.joinChannel(channelName);
+                return;
+            }
+        }
+    }
+    else {
+        std::cout << "Joining a channel" << std::endl;
+        addChannel(channelName);
+        user.joinChannel(channelName);   
+    }
+}
 
 void Server::setServerData() {
     _serverData.sin_family = AF_INET;
@@ -29,6 +50,45 @@ Client* Server::findClientByFd(int fd) {
 
 sockaddr_in Server::getServerData() {
     return _serverData;
+}
+
+std::string getHashtag(const std::string& msg) {
+    std::cout << "Getting hashtag" << std::endl;
+    size_t pos = msg.find('#');
+    if (pos == std::string::npos)
+        return "";
+    size_t end = msg.find(' ', pos);
+    if (end == std::string::npos)
+        end = msg.size();
+    std::cout << "Returning hashtag" << std::endl; 
+    return msg.substr(pos, end - pos);
+}
+
+void Server::msgHandler(Client& user, std::string& msg) {
+    std::cout << "Inside msgHandler with: " << user.getMsg() << std::endl;
+
+    std::vector<std::string> cmds = {"/join", "/msg", "/kick", "/invite", "/topic", "/mode"};
+    std::string cmd;
+
+    std::size_t pos = msg.find("/");
+    if (pos != std::string::npos) {
+        std::string cmdPart = msg.substr(pos); 
+        for (auto& i : cmds) {
+            if (cmdPart.rfind(i, 0) == 0) {
+                cmd = i;
+                break;
+            }
+        }
+    }
+    std::cout << "got command: " << cmd << std::endl;
+    std::string hash = getHashtag(msg);
+    if (!cmd.empty() && !hash.empty()) {
+        if (cmd == "/join"){
+            joinHandler(hash, user);
+        }
+    } else {
+        std::cout << "Regular message or unknown command." << std::endl;
+    }
 }
 
 Server::Server(const int port, const std::string password): _port(port), _password(password){
@@ -69,6 +129,8 @@ Server::Server(const int port, const std::string password): _port(port), _passwo
                         buf[len] = '\0';
                         userPtr = findClientByFd(pfd.fd);
                         userPtr->setMsg(buf);
+                        std::string msg = userPtr->getMsg();
+                        msgHandler(*userPtr, msg);
                         if (userPtr && userPtr->getState() == WAITING_USERNAME) {
                             std::string username(buf);
                             userPtr->setUsername(username);
@@ -86,7 +148,6 @@ Server::Server(const int port, const std::string password): _port(port), _passwo
                             for (auto& client: _clients) {
                                 if (client.getClientFd() != pfd.fd) {
                                     std::string msg = userPtr->getMsg().c_str();
-                                    std::cout << msg;
                                     send(client.getClientFd(), msg.c_str(), msg.size(), 0);
                                 }
                             }

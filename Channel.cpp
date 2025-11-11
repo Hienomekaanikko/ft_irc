@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/05 16:38:05 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/05 16:56:24 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/10 15:52:48 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -33,4 +33,8 @@ Client Channel::getClient(std::string& clientName) const {
         }
     }
     throw std::runtime_error("Client not found in channel");
+}
+
+std::string& Channel::getChannelName() {
+    return _channelName;
 }
