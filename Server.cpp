@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/03 14:12:16 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/10 16:21:15 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/11 10:15:12 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -28,6 +28,7 @@ void Server::joinHandler(std::string& channelName, Client& user) {
         }
     }
     else {
+        std::cout << "Joining a channel" << std::endl;
         addChannel(channelName);
         user.joinChannel(channelName);   
     }
@@ -52,13 +53,14 @@ sockaddr_in Server::getServerData() {
 }
 
 std::string getHashtag(const std::string& msg) {
+    std::cout << "Getting hashtag" << std::endl;
     size_t pos = msg.find('#');
     if (pos == std::string::npos)
         return "";
     size_t end = msg.find(' ', pos);
     if (end == std::string::npos)
         end = msg.size();
-        
+    std::cout << "Returning hashtag" << std::endl; 
     return msg.substr(pos, end - pos);
 }
 
@@ -68,14 +70,17 @@ void Server::msgHandler(Client& user, std::string& msg) {
     std::vector<std::string> cmds = {"/join", "/msg", "/kick", "/invite", "/topic", "/mode"};
     std::string cmd;
 
-    if (!msg.empty() && msg[0] == '/') {
-        for (const auto& i : cmds) {
-            if (msg.rfind(i, 0) == 0) {
+    std::size_t pos = msg.find("/");
+    if (pos != std::string::npos) {
+        std::string cmdPart = msg.substr(pos); 
+        for (auto& i : cmds) {
+            if (cmdPart.rfind(i, 0) == 0) {
                 cmd = i;
                 break;
             }
         }
     }
+    std::cout << "got command: " << cmd << std::endl;
     std::string hash = getHashtag(msg);
     if (!cmd.empty() && !hash.empty()) {
         if (cmd == "/join"){
