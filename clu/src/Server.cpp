@@ -1,12 +1,15 @@
 #include "Server.hpp"
 
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 #include <cstring>
 #include <string_view>
 #include <cstdlib>
 #include <cerrno>
 #include <unistd.h>
 #include <fcntl.h>
+#include <algorithm>
 #include <sys/socket.h>
 
 /// Constructor ///
@@ -189,23 +192,16 @@ void Server::handleClientRead(std::size_t index)
 		else if (bytes == 0)
 		{
 			// Client disconnected
-			std::cout << "Client disconnected: fd = " << clientFd << std::endl;
-			::close(clientFd);
-			_clients.erase(clientFd);
-			_fds[index] = _fds.back();
-			_fds.pop_back();
+			disconnectClient(clientFd, "EOF");
 			return;
 		}
 		else
 		{
 			if (errno == EWOULDBLOCK || errno == EAGAIN)
-				break; // No more data to read
+				break;
 			
 			std::perror("Recv failed");
-			::close(clientFd);
-			_clients.erase(clientFd);
-			_fds[index] = _fds.back();
-			_fds.pop_back();
+			disconnectClient(clientFd, "Recv error");
 			return;
 		}
 	}
@@ -248,15 +244,242 @@ void Server::handleClientWrite(std::size_t index)
 		_fds[index].events = POLLIN;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////
+/// Command processing and message sending ///
+
 /*
 ** Process a complete line received from a client
+** Parses the command and dispatches to the appropriate handler
 */
 void Server::processLine(int clientFd, std::string_view line)
 {
-	// Handle the received line (e.g., command parsing, response generation)
-	std::cout << "Received command from client " << clientFd << ": " << line << std::endl;
+	auto it = _clients.find(clientFd);
+	if (it == _clients.end())
+		return; // Client not found
+	Client &client = it->second;
 
-	// For demonstration, echo the line back to the client
-	Client &client = _clients.at(clientFd);
-	client.queueMsg(std::string(line) + "\r\n");
+	auto cmd = parseCommand(line);
+	if (cmd.command.empty())
+		return; // No command found
+	
+	std::string upper(cmd.command);
+	for (char &c : upper)
+		c = std::toupper(static_cast<unsigned char>(c));
+	
+	if (upper == "PASS")
+		handlePASS(client, cmd.params);
+	else if (upper == "NICK")
+		handleNICK(client, cmd.params);
+	else if (upper == "USER")
+		handleUSER(client, cmd.params);
+	else if (upper == "PING")
+		handlePING(client, cmd.params);
+	else if (upper == "QUIT")
+		handleQUIT(client, cmd.params);
+	else
+		std::cout << "Unknown command: " << upper << std::endl;
+}
+
+/*
+** Parse a command line into command and parameters
+** Returns a ParsedCommand struct, containing the command and a vector of parameters
+*/
+Server::ParsedCommand Server::parseCommand(std::string_view line)
+{
+	ParsedCommand result;
+	
+	// Trim leading spaces
+	while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front())))
+		line.remove_prefix(1);
+
+	// Extract command
+	auto spacePos = line.find(' ');
+	if (spacePos == std::string_view::npos)
+	{
+		result.command = line;
+		return result;
+	}
+
+	// Params extraction
+	while (!line.empty())
+	{
+		// Trim leading spaces
+		while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front())))
+			line.remove_prefix(1);
+		if (line.empty())
+			break;
+		if (line.front() == ':')
+		{
+			line.remove_prefix(1);
+			result.params.push_back(line);
+			break;
+		}
+		auto nextSpace = line.find(' ');
+		if (nextSpace == std::string_view::npos)
+		{
+			result.params.push_back(line);
+			break;
+		}
+		else
+		{
+			result.params.push_back(line.substr(0, nextSpace));
+			line.remove_prefix(nextSpace + 1);
+		}
+	}
+	// No command was found
+	return result;
+}
+
+/*
+** Handle PASS command
+** Verifies the password and updates client state
+*/
+void Server::handlePASS(Client &client, const std::vector<std::string_view> &params)
+{
+	if (client.isRegistered())
+	{
+		sendNumeric(client, 462, "You may not reregister");
+		return;
+	}
+	if (params.empty())
+	{
+		sendNumeric(client, 461, "PASS :Not enough parameters");
+		return;
+	}
+	if (std::string(params[0]) != _password)
+	{
+		sendNumeric(client, 464, "Password incorrect");
+		return;
+	}
+	client.setHasPassword(true);
+	maybeRegistered(client);
+}
+
+/*
+** Handle NICK command
+** Sets the client's nickname
+*/
+void Server::handleNICK(Client &client, const std::vector<std::string_view> &params)
+{
+	if (params.empty())
+	{
+		sendNumeric(client, 431, ":No nickname given");
+		return;
+	}
+	client.setNickname(std::string(params[0]));
+	maybeRegistered(client);
+}
+
+/*
+** Handle USER command
+** Sets the client's username and fullname
+*/
+void Server::handleUSER(Client &client, const std::vector<std::string_view> &params)
+{
+	if (params.size() < 4)
+	{
+		sendNumeric(client, 461, "USER :Not enough parameters");
+		return;
+	}
+	if (client.isRegistered())
+	{
+		sendNumeric(client, 462, "You may not reregister");
+		return;
+	}
+	client.setUsername(std::string(params[0]));
+	client.setFullname(std::string(params[3]));
+	maybeRegistered(client);
+}
+
+/*
+** Handle PING command
+** Responds with a PONG message
+*/
+void Server::handlePING(Client &client, const std::vector<std::string_view> &params)
+{
+	if (params.empty())
+	{
+		sendNumeric(client, 409, ":No origin specified");
+		return;
+	}
+	std::string pongMsg = "PONG :" + std::string(params[0]) + "\r\n";
+	client.queueMsg(pongMsg);
+}
+
+/*
+** Handle QUIT command
+*/
+void Server::handleQUIT(Client &client, const std::vector<std::string_view> &params)
+{
+	std::string reason = params.empty() ? "Client Quit" : std::string(params[0]);
+	disconnectClient(client.getFd(), reason);
+}
+
+/*
+** Check if client has completed registration
+** If so, mark as registered and send welcome messages
+*/
+void Server::maybeRegistered(Client &client)
+{
+	if (client.isRegistered())
+		return;
+
+	if (client.hasPassword() && client.hasNickname() && client.hasUsername())
+	{
+		client.setIsRegistered(true);
+		sendNumeric(client, 001, "Welcome to the IRC Network, " + client.getNickname());
+		sendNumeric(client, 002, "Your host is " + _serverName);
+		sendNumeric(client, 003, "This server was created just now");
+		sendNumeric(client, 004, _serverName + " ft_irc_server v1.0");
+	}
+}
+
+/*
+** Send a numeric reply to a client
+** Formats and queues the message in the client's write buffer
+*/
+void Server::sendNumeric(Client &client, int numeric, const std::string_view msg)
+{
+	std::ostringstream oss;
+	oss << ":" << _serverName << " " << std::setfill('0') << std::setw(3)
+		<< numeric << " " << formatPrefix(client) << " :" << msg << "\r\n";
+	client.queueMsg(oss.str());
+}
+/*
+** Format the prefix for messages from the server
+*/
+std::string Server::formatPrefix(const Client &client) const
+{
+	if (client.hasNickname())
+		return client.getNickname();
+	return "anonymous";
+}
+
+/*
+** Disconnect a client and clean up resources
+*/
+void Server::disconnectClient(int fd, std::string_view reason)
+{
+	auto it = _clients.find(fd);
+	if (it == _clients.end())
+		return; // Client not found
+	
+	Client &client = it->second;
+	std::string nickname = client.hasNickname() ? client.getNickname() : "<unknown>";
+
+	std::cout << "Disconnecting client [" << nickname << "] fd=" << fd 
+			  << " reason: " << reason << std::endl;
+
+	// Close the socket and remove from clients map and fds vector
+	::close(fd);
+
+	// Remove from poll fds
+	auto newEnd = std::remove_if(_fds.begin(), _fds.end(),
+		[fd](const pollfd &pfd) { return pfd.fd == fd; });
+	_fds.erase(newEnd, _fds.end());
+
+	// Remove from clients map
+	_clients.erase(it);
+
+	std::cout << "Client " << nickname << " disconnected cleanly." << std::endl;
 }

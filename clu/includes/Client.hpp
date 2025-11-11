@@ -1,23 +1,17 @@
 #pragma once
 
 #include <string>
+#include <unordered_map>
+
+enum class RegistrationState
+{
+	NeedPassNickUser,
+	NeedNickUser,
+	NeedUser,
+	Registered
+};
 
 class Client {
-private:
-	int _fd = -1;
-	std::string _readBuffer;
-	std::string _writeBuffer;
-
-	// Identity & State
-	std::string _nickname;
-	std::string _username;
-	std::string _fullname;
-
-	bool _hasPassword = false;
-	bool _hasNickname = false;
-	bool _hasUsername = false;
-	bool _isRegistered = false;
-
 public:
 	Client() = default;
 	Client(int fd);
@@ -45,17 +39,42 @@ public:
 
 	// Setters
 	void setFd(int fd) noexcept;
-	void setNickname(const std::string &nickname);
-	void setUsername(const std::string &username);
-	void setFullname(const std::string &fullname);
+	void setNickname(std::string nickname);
+	void setUsername(std::string username);
+	void setFullname(std::string fullname);
 
 	// Client state information
 	bool hasPassword() const noexcept;
 	bool hasNickname() const noexcept;
 	bool hasUsername() const noexcept;
+	bool hasFullname() const noexcept;
 	bool isRegistered() const noexcept;
 
+	void setHasPassword(bool hasPassword) noexcept;
+	void setIsRegistered(bool isRegistered) noexcept;
+	RegistrationState getRegistrationState() const noexcept;
 
 	bool dataToWrite() const noexcept;
 	void queueMsg(const std::string &msg);
+
+private:
+	int _fd = -1;
+	std::string _readBuffer;
+	std::string _writeBuffer;
+
+	// Identity & State
+	std::string _nickname;
+	std::string _username;
+	std::string _fullname;
+
+	bool _hasPassword = false;
+	bool _hasNickname = false;
+	bool _hasUsername = false;
+	bool _hasFullname = false;
+	bool _isRegistered = false;
+	RegistrationState _regState = RegistrationState::NeedPassNickUser;
+
+	static void trimCrLf(std::string &str);
+
+	// std::unordered_map<std::string, Channel> _channels;
 };
