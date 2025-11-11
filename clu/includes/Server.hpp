@@ -19,7 +19,6 @@ public:
 	Server(const Server &other) = delete;
 	Server &operator=(const Server &other) = delete;
 
-
 	void run();
 
 private:

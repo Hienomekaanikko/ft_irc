@@ -79,7 +79,7 @@ void Server::setNonBlocking(int fd)
 	if (flags < 0)
 		throw std::runtime_error("Get file descriptor flags failed: " + std::string(strerror(errno)));
 	
-	if (::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
+	if (::fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
 		throw std::runtime_error("Set non-blocking mode failed: " + std::string(strerror(errno)));
 }
 
