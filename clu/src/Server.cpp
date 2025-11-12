@@ -34,7 +34,7 @@ Server::~Server()
 void Server::run()
 {
 	std::cout << "Server is running..." << std::endl;
-	mainLoop(); // Enter the main server loop
+	mainLoop();
 }
 
 /// Member functions ///
