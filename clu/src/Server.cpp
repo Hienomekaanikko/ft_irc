@@ -184,7 +184,7 @@ void Server::handleClientRead(std::size_t index)
 			// Process complete lines
 			while ((pos = readBuffer.find("\r\n")) != std::string::npos)
 			{
-				std::string_view line(readBuffer.data(), pos);
+				std::string line = readBuffer.substr(0, pos);
 				readBuffer.erase(0, pos + 2); // Remove processed line
 				processLine(clientFd, line);
 			}
