@@ -37,7 +37,45 @@ void Server::run()
 	mainLoop();
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////
 /// Member functions ///
+
+/*
+** Main server loop
+** Uses poll to monitor multiple file descriptors
+** Handles new connections and client read/write events
+*/
+void Server::mainLoop()
+{
+	while (true)
+	{
+		int ready = ::poll(_fds.data(), _fds.size(), -1);
+		if (ready < 0)
+		{
+			if (errno == EINTR)
+				continue; // Interrupted by signal, retry
+			throw std::runtime_error("Poll failed: " + std::string(strerror(errno)));
+		}
+
+		for (std::size_t i = 0; i < _fds.size() && ready > 0; ++i)
+		{
+			short revents = _fds[i].revents;
+			if (revents == 0)
+				continue;
+			--ready;
+
+			if (_fds[i].fd == _serverFd && (revents & POLLIN))
+				handleNewConnection();
+			else
+			{
+				if (revents & POLLIN)
+					handleClientRead(i);
+				if (revents & POLLOUT)
+					handleClientWrite(i);
+			}
+		}
+	}
+}
 
 /*
 ** Initialize server socket
@@ -84,44 +122,6 @@ void Server::setNonBlocking(int fd)
 	
 	if (::fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
 		throw std::runtime_error("Set non-blocking mode failed: " + std::string(strerror(errno)));
-}
-
-/*
-** Main server loop
-** Uses poll to monitor multiple file descriptors
-** Handles new connections and client read/write events
-*/
-void Server::mainLoop()
-{
-	// Main server loop
-	while (true)
-	{
-		int ready = ::poll(_fds.data(), _fds.size(), -1);
-		if (ready < 0)
-		{
-			if (errno == EINTR)
-				continue; // Interrupted by signal, retry
-			throw std::runtime_error("Poll failed: " + std::string(strerror(errno)));
-		}
-
-		for (std::size_t i = 0; i < _fds.size() && ready > 0; ++i)
-		{
-			short revents = _fds[i].revents;
-			if (revents == 0)
-				continue;
-			--ready;
-
-			if (_fds[i].fd == _serverFd && (revents & POLLIN))
-				handleNewConnection();
-			else
-			{
-				if (revents & POLLIN)
-					handleClientRead(i);
-				if (revents & POLLOUT)
-					handleClientWrite(i);
-			}
-		}
-	}
 }
 
 /* 
@@ -232,10 +232,7 @@ void Server::handleClientWrite(std::size_t index)
 				break;
 
 			std::perror("send");
-			::close(clientFd);
-			_clients.erase(clientFd);
-			_fds[index] = _fds.back();
-			_fds.pop_back();
+			disconnectClient(clientFd, "Send error");
 			return;
 		}
 	}
@@ -299,6 +296,8 @@ Server::ParsedCommand Server::parseCommand(std::string_view line)
 		result.command = line;
 		return result;
 	}
+	result.command = line.substr(0, spacePos);
+	line.remove_prefix(spacePos + 1);
 
 	// Params extraction
 	while (!line.empty())
@@ -363,7 +362,7 @@ void Server::handleNICK(Client &client, const std::vector<std::string_view> &par
 {
 	if (params.empty())
 	{
-		sendNumeric(client, 431, ":No nickname given");
+		sendNumeric(client, 431, "No nickname given");
 		return;
 	}
 	client.setNickname(std::string(params[0]));
@@ -399,7 +398,7 @@ void Server::handlePING(Client &client, const std::vector<std::string_view> &par
 {
 	if (params.empty())
 	{
-		sendNumeric(client, 409, ":No origin specified");
+		sendNumeric(client, 409, "No origin specified");
 		return;
 	}
 	std::string pongMsg = "PONG :" + std::string(params[0]) + "\r\n";

@@ -52,7 +52,6 @@ public:
 
 	void setHasPassword(bool hasPassword) noexcept;
 	void setIsRegistered(bool isRegistered) noexcept;
-	RegistrationState getRegistrationState() const noexcept;
 
 	bool dataToWrite() const noexcept;
 	void queueMsg(const std::string &msg);
@@ -72,7 +71,6 @@ private:
 	bool _hasUsername = false;
 	bool _hasFullname = false;
 	bool _isRegistered = false;
-	RegistrationState _regState = RegistrationState::NeedPassNickUser;
 
 	static void trimCrLf(std::string &str);
 

@@ -108,11 +108,6 @@ bool Client::isRegistered() const noexcept
 	return _isRegistered;
 }
 
-RegistrationState Client::getRegistrationState() const noexcept
-{
-	return _regState;
-}
-
 // Check if there is data to write
 bool Client::dataToWrite() const noexcept
 {
