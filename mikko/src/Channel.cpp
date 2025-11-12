@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/05 16:38:05 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/12 11:24:32 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/12 11:47:02 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -50,6 +50,8 @@ bool Channel::isOperator(Client* client) const {
 // o: Give/take channel operator privilege
 // l: Set/remove the user limit to channel
 void Channel::handleMode(const std::string& prompt, const Client& client) {
+    (void)prompt;
+    (void)client;
     /*
     The commands that have MODE +(i,t,k,o,s) or MODE -(i,t,k,o,s) will be handled here.
     if the client has permissions, then the changes will be made.
