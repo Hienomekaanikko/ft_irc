@@ -55,6 +55,7 @@ private:
 	void handleUSER(Client &client, const std::vector<std::string_view> &params);
 	void handlePING(Client &client, const std::vector<std::string_view> &params);
 	void handleQUIT(Client &client, const std::vector<std::string_view> &params);
+	void handleJOIN(Client &client, const std::vector<std::string_view> &params);
 
 	void maybeRegistered(Client &client);
 

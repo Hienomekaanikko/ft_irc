@@ -415,6 +415,27 @@ void Server::handleQUIT(Client &client, const std::vector<std::string_view> &par
 }
 
 /*
+** Handle JOIN command
+** Joins client to a channel
+*/
+void Server::handleJOIN(Client &client, const std::vector<std::string_view> &params)
+{
+	(void)client;
+	std::cout << "at handleJOIN with param: " << params[0] << std::endl;
+	// if (params.empty())
+	// {
+	// 	sendNumeric();
+	// 	return;
+	// }
+	// auto it = _channels.find(params[0]);
+	// if (it != _channels.end()) {
+	// 	it->second.addClient(client);
+	// }
+	// else
+		//create new channel
+}
+
+/*
 ** Check if client has completed registration
 ** If so, mark as registered and send welcome messages
 */
