@@ -182,10 +182,13 @@ void Server::handleClientRead(std::size_t index)
 			std::size_t pos;
 
 			// Process complete lines
-			while ((pos = readBuffer.find("\r\n")) != std::string::npos)
+			while ((pos = readBuffer.find('\n')) != std::string::npos)
 			{
-				std::string_view line(readBuffer.data(), pos);
-				readBuffer.erase(0, pos + 2); // Remove processed line
+				size_t lineEnd = pos;
+				if (lineEnd > 0 && readBuffer[lineEnd - 1] == '\r')
+					lineEnd--;
+				std::string line = readBuffer.substr(0, lineEnd);
+				readBuffer.erase(0, pos + 1); // remove up to and including '\n'
 				processLine(clientFd, line);
 			}
 		}
@@ -259,13 +262,18 @@ void Server::processLine(int clientFd, std::string_view line)
 	Client &client = it->second;
 
 	auto cmd = parseCommand(line);
-	if (cmd.command.empty())
+	if (cmd.command.empty()) {
+		std::cout << "no command was found" << std::endl;
 		return; // No command found
+	}
+	
+	std::cout << "At processLine() with cmd: " << cmd.command << std::endl;
 	
 	std::string upper(cmd.command);
 	for (char &c : upper)
 		c = std::toupper(static_cast<unsigned char>(c));
 	
+	std::cout << "upper is: " << upper << std::endl;
 	if (upper == "PASS")
 		handlePASS(client, cmd.params);
 	else if (upper == "NICK")
@@ -276,6 +284,8 @@ void Server::processLine(int clientFd, std::string_view line)
 		handlePING(client, cmd.params);
 	else if (upper == "QUIT")
 		handleQUIT(client, cmd.params);
+	else if (upper == "JOIN")
+		handleJOIN(client, cmd.params);
 	else
 		std::cout << "Unknown command: " << upper << std::endl;
 }
@@ -286,49 +296,58 @@ void Server::processLine(int clientFd, std::string_view line)
 */
 Server::ParsedCommand Server::parseCommand(std::string_view line)
 {
-	ParsedCommand result;
-	
-	// Trim leading spaces
-	while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front())))
-		line.remove_prefix(1);
+    ParsedCommand result;
 
-	// Extract command
-	auto spacePos = line.find(' ');
-	if (spacePos == std::string_view::npos)
-	{
-		result.command = line;
-		return result;
-	}
+    // 1. Trim leading spaces
+    while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front())))
+        line.remove_prefix(1);
 
-	// Params extraction
-	while (!line.empty())
-	{
-		// Trim leading spaces
-		while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front())))
-			line.remove_prefix(1);
-		if (line.empty())
-			break;
-		if (line.front() == ':')
-		{
-			line.remove_prefix(1);
-			result.params.push_back(line);
-			break;
-		}
-		auto nextSpace = line.find(' ');
-		if (nextSpace == std::string_view::npos)
-		{
-			result.params.push_back(line);
-			break;
-		}
-		else
-		{
-			result.params.push_back(line.substr(0, nextSpace));
-			line.remove_prefix(nextSpace + 1);
-		}
-	}
-	// No command was found
-	return result;
+    if (line.empty())
+        return result; // empty line, nothing to parse
+
+    // 2. Extract command (first word)
+    size_t spacePos = line.find(' ');
+    if (spacePos == std::string_view::npos)
+    {
+        result.command = line; // whole line is command
+        return result;
+    }
+
+    result.command = line.substr(0, spacePos);
+    line.remove_prefix(spacePos + 1); // remove command + space
+
+    // 3. Extract parameters
+    while (!line.empty())
+    {
+        // Trim leading spaces
+        while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front())))
+            line.remove_prefix(1);
+        if (line.empty())
+            break;
+
+        if (line.front() == ':')
+        {
+            // Trailing parameter: everything after ':' is one parameter
+            line.remove_prefix(1);
+            result.params.push_back(line);
+            break;
+        }
+
+        // Next space separates parameters
+        size_t nextSpace = line.find(' ');
+        if (nextSpace == std::string_view::npos)
+        {
+            result.params.push_back(line);
+            break;
+        }
+
+        result.params.push_back(line.substr(0, nextSpace));
+        line.remove_prefix(nextSpace + 1);
+    }
+
+    return result;
 }
+
 
 /*
 ** Handle PASS command
@@ -353,6 +372,27 @@ void Server::handlePASS(Client &client, const std::vector<std::string_view> &par
 	}
 	client.setHasPassword(true);
 	maybeRegistered(client);
+}
+
+/*
+** Handle JOIN command
+** Joins client to a channel
+*/
+void Server::handleJOIN(Client &client, const std::vector<std::string_view> &params)
+{
+	(void)client;
+	std::cout << "at handleJOIN with param: " << params[0] << std::endl;
+	// if (params.empty())
+	// {
+	// 	sendNumeric();
+	// 	return;
+	// }
+	// auto it = _channels.find(params[0]);
+	// if (it != _channels.end()) {
+	// 	it->second.addClient(client);
+	// }
+	// else
+		//create new channel
 }
 
 /*

@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/05 16:36:49 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/12 10:52:49 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/12 14:07:52 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include <stdexcept>
 #include "Client.hpp"
+#include <iostream>
 
 class Client;
 

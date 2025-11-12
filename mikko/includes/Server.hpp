@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Client.hpp"
+#include "Channel.hpp"
 
 #include <vector>
 #include <string_view>
@@ -30,6 +31,7 @@ private:
 	socklen_t 						_addrLen;
 	std::vector<pollfd> 			_fds;	  		// index 0 = server
 	std::unordered_map<int, Client> _clients;  		// fd -> Client
+	std::unordered_map<std::string, Channel> _channels;
 
 	// Main server functions
 	void initSocket();
@@ -55,6 +57,7 @@ private:
 	void handleUSER(Client &client, const std::vector<std::string_view> &params);
 	void handlePING(Client &client, const std::vector<std::string_view> &params);
 	void handleQUIT(Client &client, const std::vector<std::string_view> &params);
+	void handleJOIN(Client &client, const std::vector<std::string_view> &params);
 
 	void maybeRegistered(Client &client);
 
