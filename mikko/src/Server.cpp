@@ -266,14 +266,10 @@ void Server::processLine(int clientFd, std::string_view line)
 		std::cout << "no command was found" << std::endl;
 		return; // No command found
 	}
-	
-	std::cout << "At processLine() with cmd: " << cmd.command << std::endl;
-	
 	std::string upper(cmd.command);
 	for (char &c : upper)
 		c = std::toupper(static_cast<unsigned char>(c));
 	
-	std::cout << "upper is: " << upper << std::endl;
 	if (upper == "PASS")
 		handlePASS(client, cmd.params);
 	else if (upper == "NICK")
