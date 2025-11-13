@@ -33,8 +33,38 @@ Server::~Server()
 */
 void Server::run()
 {
+	_running = true;
 	std::cout << "Server is running..." << std::endl;
 	mainLoop();
+}
+
+void Server::shutdown()
+{
+	if (!_running)
+		return;
+	std::cout << "Shutting down server..." << std::endl;
+	_running = false;
+
+	// Disconnect all clients
+	std::vector<int>fds;
+	fds.reserve(_clients.size());
+	for (std::unordered_map<int, Client>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+		fds.push_back(it->first);
+	for (int fd : fds)
+		disconnectClient(fd, "Server shutting down");
+	
+	// Close server socket
+	if (_serverFd >= 0)
+	{
+		close(_serverFd);
+		_serverFd = -1;
+	}
+
+	// Cleanup containers
+	_fds.clear();
+	_clients.clear();
+
+	std::cout << "Server shutdown successful." << std::endl;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -47,13 +77,17 @@ void Server::run()
 */
 void Server::mainLoop()
 {
-	while (true)
+	while (_running)
 	{
 		int ready = ::poll(_fds.data(), _fds.size(), -1);
 		if (ready < 0)
 		{
 			if (errno == EINTR)
-				continue; // Interrupted by signal, retry
+			{
+				if (!_running)
+					break; // Exit loop if server is shutting down
+				continue; // Otherwise, continue polling
+			}
 			throw std::runtime_error("Poll failed: " + std::string(strerror(errno)));
 		}
 
@@ -86,13 +120,13 @@ void Server::initSocket()
 	_serverFd = socket(AF_INET, SOCK_STREAM, 0);
 	if (_serverFd < 0)
 		throw std::runtime_error("Socket creation failed: " + std::string(strerror(errno)));
-	
+
 	setNonBlocking(_serverFd);
 
 	int opt = 1;
 	if (::setsockopt(_serverFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
 		throw std::runtime_error("Set socket options failed: " + std::string(strerror(errno)));
-	
+
 	_address.sin_family = AF_INET;
 	_address.sin_addr.s_addr = INADDR_ANY;
 	_address.sin_port = htons(_port);
@@ -104,8 +138,8 @@ void Server::initSocket()
 		throw std::runtime_error("Listen failed: " + std::string(strerror(errno)));
 
 	std::cout << "IRC Server is now listening on port " << _port
-			<< " (password: " << _password << ")" << std::endl;
-	
+			  << " (password: " << _password << ")" << std::endl;
+
 	// Add server fd to poll fds
 	pollfd serverPollFd;
 	serverPollFd.fd = _serverFd;
@@ -116,15 +150,11 @@ void Server::initSocket()
 
 void Server::setNonBlocking(int fd)
 {
-	int flags = ::fcntl(fd, F_GETFL, 0);
-	if (flags < 0)
-		throw std::runtime_error("Get file descriptor flags failed: " + std::string(strerror(errno)));
-	
 	if (::fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
 		throw std::runtime_error("Set non-blocking mode failed: " + std::string(strerror(errno)));
 }
 
-/* 
+/*
 ** Handle new client connections
 ** Accepts the connection, sets the socket to non-blocking,
 ** adds the client to the poll fds and the clients map
@@ -145,7 +175,7 @@ void Server::handleNewConnection()
 		std::perror("Accept failed");
 		return;
 	}
-	
+
 	setNonBlocking(clientFd);
 
 	std::cout << "New client connected: fd = " << clientFd << std::endl;
@@ -178,7 +208,7 @@ void Server::handleClientRead(std::size_t index)
 		{
 			client.getReadBuffer().append(buffer, static_cast<std::size_t>(bytes));
 
-			std::string& readBuffer = client.getReadBuffer();
+			std::string &readBuffer = client.getReadBuffer();
 			std::size_t pos;
 
 			// Process complete lines
@@ -187,6 +217,8 @@ void Server::handleClientRead(std::size_t index)
 				std::string line = readBuffer.substr(0, pos);
 				readBuffer.erase(0, pos + 2); // Remove processed line
 				processLine(clientFd, line);
+				if (_clients.find(clientFd) == _clients.end())
+					return; // Client disconnected during processing
 			}
 		}
 		else if (bytes == 0)
@@ -199,7 +231,7 @@ void Server::handleClientRead(std::size_t index)
 		{
 			if (errno == EWOULDBLOCK || errno == EAGAIN)
 				break;
-			
+
 			std::perror("Recv failed");
 			disconnectClient(clientFd, "Recv error");
 			return;
@@ -252,17 +284,17 @@ void Server::processLine(int clientFd, std::string_view line)
 {
 	auto it = _clients.find(clientFd);
 	if (it == _clients.end())
-		return; // Client not found
+		return;
 	Client &client = it->second;
 
 	auto cmd = parseCommand(line);
 	if (cmd.command.empty())
-		return; // No command found
-	
+		return;
+
 	std::string upper(cmd.command);
 	for (char &c : upper)
 		c = std::toupper(static_cast<unsigned char>(c));
-	
+
 	if (upper == "PASS")
 		handlePASS(client, cmd.params);
 	else if (upper == "NICK")
@@ -273,6 +305,8 @@ void Server::processLine(int clientFd, std::string_view line)
 		handlePING(client, cmd.params);
 	else if (upper == "QUIT")
 		handleQUIT(client, cmd.params);
+	else if (upper == "JOIN")
+		handleJOIN(client, cmd.params);
 	else
 		std::cout << "Unknown command: " << upper << std::endl;
 }
@@ -284,7 +318,7 @@ void Server::processLine(int clientFd, std::string_view line)
 Server::ParsedCommand Server::parseCommand(std::string_view line)
 {
 	ParsedCommand result;
-	
+
 	// Trim leading spaces
 	while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front())))
 		line.remove_prefix(1);
@@ -410,7 +444,9 @@ void Server::handlePING(Client &client, const std::vector<std::string_view> &par
 */
 void Server::handleQUIT(Client &client, const std::vector<std::string_view> &params)
 {
-	std::string reason = params.empty() ? "Client Quit" : std::string(params[0]);
+	std::string reason = "Client Quit";
+	if (!params.empty())
+		reason = std::string(params[0]);
 	disconnectClient(client.getFd(), reason);
 }
 
@@ -420,19 +456,27 @@ void Server::handleQUIT(Client &client, const std::vector<std::string_view> &par
 */
 void Server::handleJOIN(Client &client, const std::vector<std::string_view> &params)
 {
-	(void)client;
-	std::cout << "at handleJOIN with param: " << params[0] << std::endl;
-	// if (params.empty())
-	// {
-	// 	sendNumeric();
-	// 	return;
-	// }
-	// auto it = _channels.find(params[0]);
-	// if (it != _channels.end()) {
-	// 	it->second.addClient(client);
-	// }
-	// else
-		//create new channel
+	if (params.empty())
+	{
+		sendNumeric(client, 461, "JOIN :Not enough parameters");
+		return;
+	}
+
+	std::string _channelName(params[0]);
+	if (client.hasNickname())
+		std::cout << client.getNickname() << " joining channel: " << _channelName << std::endl;
+	else
+		std::cout << "Unknown client joining channel: " << _channelName << std::endl;
+	
+	auto it = _channels.find(_channelName);
+	if (it != _channels.end())
+		it->second.addClient(&client);
+	else
+	{
+		Channel newChannel(_channelName);
+		newChannel.addClient(&client);
+		_channels.emplace(_channelName, newChannel);
+	}
 }
 
 /*
@@ -483,11 +527,11 @@ void Server::disconnectClient(int fd, std::string_view reason)
 	auto it = _clients.find(fd);
 	if (it == _clients.end())
 		return; // Client not found
-	
+
 	Client &client = it->second;
 	std::string nickname = client.hasNickname() ? client.getNickname() : "<unknown>";
 
-	std::cout << "Disconnecting client [" << nickname << "] fd=" << fd 
+	std::cout << "Disconnecting client [" << nickname << "] fd=" << fd
 			  << " reason: " << reason << std::endl;
 
 	// Close the socket and remove from clients map and fds vector
@@ -495,11 +539,35 @@ void Server::disconnectClient(int fd, std::string_view reason)
 
 	// Remove from poll fds
 	auto newEnd = std::remove_if(_fds.begin(), _fds.end(),
-		[fd](const pollfd &pfd) { return pfd.fd == fd; });
+								 [fd](const pollfd &pfd)
+								 { return pfd.fd == fd; });
 	_fds.erase(newEnd, _fds.end());
 
+	std::vector<std::string> emptyChannels;
+	// Remove client from all channels
+	for (auto &channelPair : _channels)
+	{
+		Channel &channel = channelPair.second;
+		try
+		{
+			channel.removeClient(&client);
+		}
+		catch (const std::runtime_error &)
+		{
+			// Client was not in this channel, ignore
+		}
+		if (channel.isEmpty())
+			emptyChannels.push_back(channel.getChannelName());
+	}
+	
 	// Remove from clients map
 	_clients.erase(it);
 
-	std::cout << "Client " << nickname << " disconnected cleanly." << std::endl;
+	::close(fd);
+
+	// Clean up empty channels
+	for (const std::string &chanName : emptyChannels)
+		_channels.erase(chanName);
+
+	std::cout << "Client " << nickname << " disconnected successfully." << std::endl;
 }

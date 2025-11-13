@@ -31,11 +31,11 @@ public:
 	const std::string &getFullname() const noexcept;
 
 	// Read line buffer
-	std::string &getReadBuffer() noexcept;
-	const std::string &getReadBuffer() const noexcept;
+	std::string 		&getReadBuffer() noexcept;
+	const std::string 	&getReadBuffer() const noexcept;
 
-	std::string &getWriteBuffer() noexcept;
-	const std::string &getWriteBuffer() const noexcept;
+	std::string 		&getWriteBuffer() noexcept;
+	const std::string 	&getWriteBuffer() const noexcept;
 
 	// Setters
 	void setFd(int fd) noexcept;
@@ -57,7 +57,7 @@ public:
 	void queueMsg(const std::string &msg);
 
 private:
-	int _fd = -1;
+	int 		_fd = -1;
 	std::string _readBuffer;
 	std::string _writeBuffer;
 
@@ -73,6 +73,4 @@ private:
 	bool _isRegistered = false;
 
 	static void trimCrLf(std::string &str);
-
-	// std::unordered_map<std::string, Channel> _channels;
 };

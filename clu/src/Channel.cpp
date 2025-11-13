@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Channel.cpp                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
+/*   By: clu <clu@student.hive.fi>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/05 16:38:05 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/12 11:47:02 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/13 14:46:31 by clu              ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -78,6 +78,11 @@ void Channel::setTopic(const std::string& topic) {
 // Returns the name of the channel
 const std::string& Channel::getChannelName() const {
     return _channelName;
+}
+
+// Check empty channel
+bool Channel::isEmpty() const {
+    return _clients.empty();
 }
 
 // !!May not be useful!!: We can look for clients inside the channel by nickname

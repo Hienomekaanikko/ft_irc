@@ -1,8 +1,17 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <csignal>
 
 #include "Server.hpp"
+
+static Server* g_server = 0;
+
+static void handleSignal(int signal)
+{
+	if (signal == SIGINT && g_server)
+		g_server->shutdown();
+}
 
 static bool parsePort(const char *s, int &portOut)
 {
@@ -34,7 +43,10 @@ int main(int argc, char **argv)
 	try
 	{
 		Server server(port, password);
+		g_server = &server;
+		std::signal(SIGINT, handleSignal);
 		server.run();
+		g_server = 0;
 	}
 	catch (const std::exception &e)
 	{
