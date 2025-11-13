@@ -6,7 +6,7 @@
 /*   By: clu <clu@student.hive.fi>                  +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/05 16:38:05 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/13 14:46:31 by clu              ###   ########.fr       */
+/*   Updated: 2025/11/13 15:59:21 by clu              ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,27 +19,32 @@
 // k: Set/remove the channel key (password)
 // o: Give/take channel operator privilege
 // l: Set/remove the user limit to channel
-Channel::Channel(const std::string& name) : _channelName(name) {
+Channel::Channel(const std::string& name) : _channelName(name)
+{
     std::string mode_list = "itkos";
-    for (char mode : mode_list) {
+    for (char mode : mode_list) 
+    {
         _modes[mode] = false;
     }
 }
 
 // Adds a 'client' to the _clients list.
-void Channel::addClient(Client* client) {
+void Channel::addClient(Client* client) 
+{
     if (!_clients.insert(client).second)
         throw std::runtime_error("Client already in channel");
 }
 
 // Removes a 'client' to the _clients list.
-void Channel::removeClient(Client* client) {
+void Channel::removeClient(Client* client) 
+{
     if (_clients.erase(client) == 0)
         throw std::runtime_error("Client not found in channel");
 }
 
 // Returns boolean about the operator status of 'client'
-bool Channel::isOperator(Client* client) const {
+bool Channel::isOperator(Client* client) const 
+{
     return _operators.find(client) != _operators.end();
 }
 
@@ -49,7 +54,8 @@ bool Channel::isOperator(Client* client) const {
 // k: Set/remove the channel key (password)
 // o: Give/take channel operator privilege
 // l: Set/remove the user limit to channel
-void Channel::handleMode(const std::string& prompt, const Client& client) {
+void Channel::handleMode(const std::string& prompt, const Client& client) 
+{
     (void)prompt;
     (void)client;
     /*
@@ -59,34 +65,25 @@ void Channel::handleMode(const std::string& prompt, const Client& client) {
 }
 
 // Will be called from the handleMode if the client permissions match
-void Channel::setPassword(const std::string& password) {
-    _password = password;
-}
+void Channel::setPassword(const std::string& password) { _password = password; }
 
 // Returns the channel topic
-const std::string& Channel::getTopic() const {
-    return _topic;
-}
+const std::string& Channel::getTopic() const { return _topic; }
 
 // This handles the setting of cmd TOPIC when its called. 
 // If MODE t is true, then only moderators can change the channel topic.
 // otherwise anyone can change it.
-void Channel::setTopic(const std::string& topic) {
-    _topic = topic;
-}
+void Channel::setTopic(const std::string& topic) { _topic = topic; }
 
 // Returns the name of the channel
-const std::string& Channel::getChannelName() const {
-    return _channelName;
-}
+const std::string& Channel::getChannelName() const { return _channelName; }
 
 // Check empty channel
-bool Channel::isEmpty() const {
-    return _clients.empty();
-}
+bool Channel::isEmpty() const { return _clients.empty(); }
 
 // !!May not be useful!!: We can look for clients inside the channel by nickname
-Client* Channel::findClientByNickname(const std::string& name) const {
+Client* Channel::findClientByNickname(const std::string& name) const
+{
     for (auto* c : _clients) {
         if (c->getNickname() == name)
             return c;
