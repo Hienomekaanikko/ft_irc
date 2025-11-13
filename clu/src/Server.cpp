@@ -42,7 +42,7 @@ void Server::shutdown()
 {
 	if (!_running)
 		return;
-	std::cout << "Shutting down server..." << std::endl;
+	std::cout << "\nShutting down server..." << std::endl;
 	_running = false;
 
 	// Disconnect all clients
