@@ -2,6 +2,8 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
+#include <Channel.hpp>
 
 enum class RegistrationState
 {
@@ -31,11 +33,11 @@ public:
 	const std::string &getFullname() const noexcept;
 
 	// Read line buffer
-	std::string &getReadBuffer() noexcept;
-	const std::string &getReadBuffer() const noexcept;
+	std::string 		&getReadBuffer() noexcept;
+	const std::string 	&getReadBuffer() const noexcept;
 
-	std::string &getWriteBuffer() noexcept;
-	const std::string &getWriteBuffer() const noexcept;
+	std::string 		&getWriteBuffer() noexcept;
+	const std::string 	&getWriteBuffer() const noexcept;
 
 	// Setters
 	void setFd(int fd) noexcept;
@@ -52,13 +54,12 @@ public:
 
 	void setHasPassword(bool hasPassword) noexcept;
 	void setIsRegistered(bool isRegistered) noexcept;
-	RegistrationState getRegistrationState() const noexcept;
 
 	bool dataToWrite() const noexcept;
 	void queueMsg(const std::string &msg);
 
 private:
-	int _fd = -1;
+	int 		_fd = -1;
 	std::string _readBuffer;
 	std::string _writeBuffer;
 
@@ -72,9 +73,6 @@ private:
 	bool _hasUsername = false;
 	bool _hasFullname = false;
 	bool _isRegistered = false;
-	RegistrationState _regState = RegistrationState::NeedPassNickUser;
 
 	static void trimCrLf(std::string &str);
-
-	// std::unordered_map<std::string, Channel> _channels;
 };

@@ -20,6 +20,7 @@ public:
 	Server &operator=(const Server &other) = delete;
 
 	void run();
+	void shutdown();
 
 private:
 	static const int 				BUFFER_SIZE = 1024;
@@ -31,7 +32,8 @@ private:
 	socklen_t 						_addrLen;
 	std::vector<pollfd> 			_fds;	  		// index 0 = server
 	std::unordered_map<int, Client> _clients;  		// fd -> Client
-	std::unordered_map<std::string, Channel> _channels;
+	std::unordered_map<std::string, Channel> _channels; // channel name -> Channel
+	bool							_running{false};
 
 	// Main server functions
 	void initSocket();
@@ -58,11 +60,12 @@ private:
 	void handlePING(Client &client, const std::vector<std::string_view> &params);
 	void handleQUIT(Client &client, const std::vector<std::string_view> &params);
 	void handleJOIN(Client &client, const std::vector<std::string_view> &params);
+	void handleMODE(Client &client, const std::vector<std::string_view> &params);
 
 	void maybeRegistered(Client &client);
 
 	// Message sending
-	void sendNumeric(Client &client, int numeric, const std::string_view msg);
+	void 		sendNumeric(Client &client, int numeric, const std::string_view msg);
 	std::string formatPrefix(const Client &client) const;
 
 	// Client disconnection, cleanup
