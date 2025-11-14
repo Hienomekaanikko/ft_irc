@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/05 16:38:05 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/14 11:01:05 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/14 16:53:54 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,17 +21,50 @@
 // l: Set/remove the user limit to channel
 Channel::Channel(const std::string& name) : _channelName(name)
 {
-    std::string mode_list = "itkos";
+    std::string mode_list = "itkol";
     for (char mode : mode_list) 
     {
         _modes[mode] = false;
     }
+
+    std::cout << "Modes at the construction: " << std::endl;
+    for (const auto& [key, value] : _modes) {
+        std::cout << key << " = " << value << "\n";
+    }
 }
 
 void Channel::addOperator(Client *client) {
-    if (!_operators.insert(client).second)
-        throw std::runtime_error("Client already an operator");
-    std::cout << getChannelName() << ": " << client->getNickname() << " was given operator rights" << std::endl;
+    if (client == nullptr)
+        std::cerr << "Such client does not exist" << std::endl;
+    else if (!_operators.insert(client).second)
+        std::cerr << "Client already an operator" << std::endl;
+    else
+        std::cout << getChannelName() << ": " << client->getNickname() << " was given operator rights" << std::endl;
+}
+
+void Channel::removeOperator(Client *client) {
+    if (client == nullptr) {
+        std::cerr << "Such client does not exist" << std::endl;
+        return;
+    }
+    auto it = _operators.find(client);
+    if (it == _operators.end()) {
+        std::cerr << "Client is not an operator" << std::endl;
+    } else {
+        _operators.erase(it);
+        std::cout << getChannelName() << ": " << client->getNickname() 
+                  << " had operator rights removed" << std::endl;
+    }
+}
+
+void Channel::setInviteOnly() {
+    _inviteOnly = true;
+    std::cout << _channelName << ": set to invite only" << std::endl;
+}
+
+void Channel::disableInviteOnly() {
+    _inviteOnly = false;
+    std::cout << _channelName << ": invite only disabled" << std::endl;
 }
 
 // Adds a 'client' to the _clients list.
@@ -48,10 +81,33 @@ void Channel::removeClient(Client* client)
         throw std::runtime_error("Client not found in channel");
 }
 
+void Channel::setTopicProtection() {
+    std::cout << _channelName << ": topic-protection enabled" << std::endl;
+}
+
+void Channel::disableTopicProtection() {
+    std::cout << _channelName << ": topic-protection disabled" << std::endl;
+}
+
 // Returns boolean about the operator status of 'client'
 bool Channel::isOperator(Client* client) const 
 {
     return _operators.find(client) != _operators.end();
+}
+
+void Channel::setUserlimit(const std::string limit) {
+    long long n;
+    try {
+        n = stoll(limit);
+    } catch (std::exception &e) {
+        std::cerr << "Invalid user limit" << std::endl;
+        return ;
+    }
+    if (n > std::numeric_limits<int>::max() || n < std::numeric_limits<int>::min())
+        throw "Invalid value";
+    int val = static_cast<int>(n);
+    _userLimit = val;
+    std::cout << "User limit was set to " << limit << std::endl;
 }
 
 // Handles the MODE command actions:
@@ -60,19 +116,87 @@ bool Channel::isOperator(Client* client) const
 // k: Set/remove the channel key (password)
 // o: Give/take channel operator privilege
 // l: Set/remove the user limit to channel
+
 void Channel::setMode(const std::vector<std::string_view> &params) 
 {
-    std::cout << "params 0 is: " << params[0] << std::endl;
-    std::cout << "params 1 is: " << params[1] << std::endl;
-    std::cout << "params 2 is: " << params[2] << std::endl;
-    /*
-    The commands that have MODE +(i,t,k,o,s) or MODE -(i,t,k,o,s) will be handled here.
-    if the client has permissions, then the changes will be made.
-    */
+    bool add = false;
+    bool flags_set = false;
+    std::vector<char> requiresParams;
+    std::string flags = "itkol";
+    
+    size_t i = 0;
+    for (; i < params.size(); ++i) {
+        std::string_view string = params[i];
+        if (string[0] != '+' && string[0] != '-')
+            break;
+        {
+            if (string[0] == '+')
+                add = true;
+            string.remove_prefix(1);
+            for (auto it = string.begin(); it != string.end(); ++it) {
+                auto pos = find(flags.begin(), flags.end(), *it);
+                if (pos == flags.end()) {
+                    char invalidMode = *it;
+                    throw std::runtime_error(std::string(1, invalidMode) + " :is unknown mode char to me");
+                }
+                else {
+                    if (add) {
+                        if (*it == 'k' || *it == 'o' || *it == 'l')
+                            requiresParams.push_back(*it);
+                        else if (*it == 'i')
+                            setInviteOnly();
+                        else if (*it == 't')
+                            setTopicProtection();
+                        _modes[*it] = true;
+                    }
+                    else {
+                        if (*it == 'k')
+                            removePassword();
+                        _modes[*it] = false;
+                    }
+                }
+            }
+            add = false;
+        }
+        flags_set = true;
+    }
+    if (flags_set == false) {
+        char invalidMode = params[0][0];
+        throw std::runtime_error(std::string(1, invalidMode) + " :is unknown mode char to me");
+    }
+    if (!requiresParams.empty()) {
+        for (size_t j = 0; j < requiresParams.size() && i < params.size(); ++j, ++i) {
+            char mode = requiresParams[j];
+            std::string param(params[i]); 
+            switch (mode) {
+                case 'k':
+                    setPassword(param);
+                    break;
+                case 'o':
+                    addOperator(findClientByNickname(param));
+                    break;
+                case 'l':
+                    setUserlimit(param);
+                    break;
+            }
+        }
+    }
+    // std::cout << "Modes after setting up: " << std::endl;
+    // for (const auto& [key, value] : _modes) {
+    //     std::cout << key << " = " << value << "\n";
+    // }
 }
 
-// Will be called from the handleMode if the client permissions match
-void Channel::setPassword(const std::string& password) { _password = password; }
+// Will be called from the setMode if the client permissions match
+void Channel::setPassword(const std::string& password) {
+    _password = password;
+    std::cout << "Channel password was set to: " << password << std::endl;
+}
+
+void Channel::removePassword() {
+    _password = "";
+    std::cout << "Channel password was disabled" << std::endl;
+}
 
 // Returns the channel topic
 const std::string& Channel::getTopic() const { return _topic; }

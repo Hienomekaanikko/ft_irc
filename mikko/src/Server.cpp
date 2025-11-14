@@ -421,8 +421,13 @@ void Server::handleMODE(Client &client, const std::vector<std::string_view> &par
 		sendNumeric(client, 403, "MODE :No such channel");
 	}
 	else {
-		if (it->second.isOperator(&client))
-			it->second.setMode(params);
+		if (it->second.isOperator(&client)){
+			try {
+				it->second.setMode(std::vector<std::string_view>(params.begin() + 1, params.end()));
+			} catch (std::exception &e) {
+				sendNumeric(client, 472, e.what());
+			}
+		}
 		else
 			sendNumeric(client, 482, "MODE :You're not channel operator");
 	}
