@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/05 16:38:05 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/14 16:53:54 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/17 11:57:17 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -62,7 +62,7 @@ void Channel::setInviteOnly() {
     std::cout << _channelName << ": set to invite only" << std::endl;
 }
 
-void Channel::disableInviteOnly() {
+void Channel::unsetInviteOnly() {
     _inviteOnly = false;
     std::cout << _channelName << ": invite only disabled" << std::endl;
 }
@@ -85,7 +85,7 @@ void Channel::setTopicProtection() {
     std::cout << _channelName << ": topic-protection enabled" << std::endl;
 }
 
-void Channel::disableTopicProtection() {
+void Channel::unsetTopicProtection() {
     std::cout << _channelName << ": topic-protection disabled" << std::endl;
 }
 
@@ -110,6 +110,12 @@ void Channel::setUserlimit(const std::string limit) {
     std::cout << "User limit was set to " << limit << std::endl;
 }
 
+void Channel::unsetUserlimit() {
+    _userLimit = -1;
+    std::cout << "User limit was unset" << std::endl;
+}
+
+
 // Handles the MODE command actions:
 // i: Set/remove Invite-only channel
 // t: Set/remove the restrictions of the TOPIC command to channel operators
@@ -117,74 +123,60 @@ void Channel::setUserlimit(const std::string limit) {
 // o: Give/take channel operator privilege
 // l: Set/remove the user limit to channel
 
-void Channel::setMode(const std::vector<std::string_view> &params) 
+void Channel::setMode(const std::vector<std::string_view>& params)
 {
-    bool add = false;
-    bool flags_set = false;
-    std::vector<char> requiresParams;
-    std::string flags = "itkol";
-    
-    size_t i = 0;
-    for (; i < params.size(); ++i) {
-        std::string_view string = params[i];
-        if (string[0] != '+' && string[0] != '-')
-            break;
-        {
-            if (string[0] == '+')
-                add = true;
-            string.remove_prefix(1);
-            for (auto it = string.begin(); it != string.end(); ++it) {
-                auto pos = find(flags.begin(), flags.end(), *it);
-                if (pos == flags.end()) {
-                    char invalidMode = *it;
-                    throw std::runtime_error(std::string(1, invalidMode) + " :is unknown mode char to me");
-                }
-                else {
-                    if (add) {
-                        if (*it == 'k' || *it == 'o' || *it == 'l')
-                            requiresParams.push_back(*it);
-                        else if (*it == 'i')
-                            setInviteOnly();
-                        else if (*it == 't')
-                            setTopicProtection();
-                        _modes[*it] = true;
-                    }
-                    else {
-                        if (*it == 'k')
-                            removePassword();
-                        _modes[*it] = false;
-                    }
-                }
-            }
-            add = false;
+    if (params.empty())
+        throw std::runtime_error("Missing mode string");
+        
+    const std::string flags = "itkol";
+    const std::string flagsWithParams = "kol";
+
+    std::string_view modeString = params[0];
+    size_t paramIndex = 1;  // start of additional parameters
+
+    char action = 0; // '+' or '-'
+
+    for (char c : modeString) {
+        if (c == '+' || c == '-') {
+            action = c;
+            continue;
         }
-        flags_set = true;
-    }
-    if (flags_set == false) {
-        char invalidMode = params[0][0];
-        throw std::runtime_error(std::string(1, invalidMode) + " :is unknown mode char to me");
-    }
-    if (!requiresParams.empty()) {
-        for (size_t j = 0; j < requiresParams.size() && i < params.size(); ++j, ++i) {
-            char mode = requiresParams[j];
-            std::string param(params[i]); 
-            switch (mode) {
-                case 'k':
-                    setPassword(param);
-                    break;
-                case 'o':
-                    addOperator(findClientByNickname(param));
-                    break;
-                case 'l':
-                    setUserlimit(param);
-                    break;
-            }
+
+        if (flags.find(c) == std::string::npos)
+            throw std::runtime_error(std::string(1, c) + " :is unknown mode char to me");
+
+        bool adding = (action == '+');
+        std::string param;
+        if (adding && flagsWithParams.find(c) != std::string::npos) {
+            if (paramIndex >= params.size())
+                throw std::runtime_error(std::string("MODE +") + c + " requires a parameter");
+            param = std::string(params[paramIndex++]);
         }
+        switch (c) {
+            case 'i':
+                adding ? setInviteOnly() : unsetInviteOnly();
+                break;
+
+            case 't':
+                adding ? setTopicProtection() : unsetTopicProtection();
+                break;
+
+            case 'k':
+                adding ? setPassword(param) : unsetPassword();
+                break;
+
+            case 'o':
+                adding ? addOperator(findClientByNickname(param))
+                       : removeOperator(findClientByNickname(param));
+                break;
+
+            case 'l':
+                adding ? setUserlimit(param) : unsetUserlimit();
+                break;
+        }
+
+        _modes[c] = adding;
     }
-    // std::cout << "Modes after setting up: " << std::endl;
-    // for (const auto& [key, value] : _modes) {
-    //     std::cout << key << " = " << value << "\n";
-    // }
 }
 
 // Will be called from the setMode if the client permissions match
@@ -193,7 +185,7 @@ void Channel::setPassword(const std::string& password) {
     std::cout << "Channel password was set to: " << password << std::endl;
 }
 
-void Channel::removePassword() {
+void Channel::unsetPassword() {
     _password = "";
     std::cout << "Channel password was disabled" << std::endl;
 }
@@ -222,3 +214,6 @@ Client* Channel::findClientByNickname(const std::string& name) const
     return nullptr;
 }
 
+int Channel::getCurrentUsers() const {
+    return _currentUsers;
+}
