@@ -1,10 +1,10 @@
 #pragma once
 
+#include "Client.hpp"
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <stdexcept>
-#include "Client.hpp"
 #include <algorithm>
 #include <iostream>
 #include <limits>

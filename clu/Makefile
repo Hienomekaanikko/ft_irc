@@ -17,7 +17,8 @@ OBJ_DIR = ./obj
 SRCS = 	$(SRC_DIR)/main.cpp \
 		$(SRC_DIR)/Server.cpp \
 		$(SRC_DIR)/Client.cpp \
-		${SRC_DIR}/Channel.cpp
+		${SRC_DIR}/Channel.cpp \
+		$(SRC_DIR)/Messages.cpp
 # 		$(SRC_DIR)/Parser.cpp \
 # 		$(SRC_DIR)/Utils.cpp
 

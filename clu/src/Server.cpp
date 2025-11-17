@@ -307,8 +307,36 @@ void Server::processLine(int clientFd, std::string_view line)
 		handleQUIT(client, cmd.params);
 	else if (upper == "JOIN")
 		handleJOIN(client, cmd.params);
+	else if (upper == "MODE")
+		handleMODE(client, cmd.params);
+	else if (upper == "PRIVMSG")
+		handlePRIVMSG(client, cmd.params);
 	else
 		std::cout << "Unknown command: " << upper << std::endl;
+}
+
+void sendToClient(const Client &client, const std::string &message)
+{
+	if (client.getFd() < 0)
+		return; // invalid socket
+
+	ssize_t totalSent = 0;
+	ssize_t msgLen = message.size();
+
+	while (totalSent < msgLen)
+	{
+		ssize_t sent = send(client.getFd(),
+							message.c_str() + totalSent,
+							msgLen - totalSent,
+							0); // flags = 0
+		if (sent <= 0)
+		{
+			// Error or connection closed
+			// You may want to mark client as disconnected
+			break;
+		}
+		totalSent += sent;
+	}
 }
 
 /*
@@ -475,7 +503,36 @@ void Server::handleJOIN(Client &client, const std::vector<std::string_view> &par
 	{
 		Channel newChannel(_channelName);
 		newChannel.addClient(&client);
+		newChannel.addOperator(&client);
 		_channels.emplace(_channelName, newChannel);
+	}
+}
+
+/*
+** Handle MODE command
+** Sets the MODE for channel
+*/
+void Server::handleMODE(Client &client, const std::vector<std::string_view> &params)
+{
+	if (params.size() < 2) {
+		sendNumeric(client, 461, "MODE :Not enough parameters");
+		return;
+	}
+	std::string	channel(params[0]);
+	auto it = _channels.find(channel);
+	if (it == _channels.end()) {
+		sendNumeric(client, 403, "MODE :No such channel");
+	}
+	else {
+		if (it->second.isOperator(&client)){
+			try {
+				it->second.setMode(std::vector<std::string_view>(params.begin() + 1, params.end()));
+			} catch (std::exception &e) {
+				sendNumeric(client, 472, e.what());
+			}
+		}
+		else
+			sendNumeric(client, 482, "MODE :You're not channel operator");
 	}
 }
 
