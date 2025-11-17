@@ -309,8 +309,30 @@ void Server::processLine(int clientFd, std::string_view line)
 		handleJOIN(client, cmd.params);
 	else if (upper == "MODE")
 		handleMODE(client, cmd.params);
+	else if (upper == "PRIVMSG")
+    	handlePRIVMSG(client, cmd.params);
 	else
 		std::cout << "Unknown command: " << upper << std::endl;
+}
+
+void sendToClient(const Client &client, const std::string &message) {
+    if (client.getFd() < 0) return; // invalid socket
+
+    ssize_t totalSent = 0;
+    ssize_t msgLen = message.size();
+
+    while (totalSent < msgLen) {
+        ssize_t sent = send(client.getFd(),
+                            message.c_str() + totalSent,
+                            msgLen - totalSent,
+                            0); // flags = 0
+        if (sent <= 0) {
+            // Error or connection closed
+            // You may want to mark client as disconnected
+            break;
+        }
+        totalSent += sent;
+    }
 }
 
 /*
@@ -603,3 +625,4 @@ void Server::disconnectClient(int fd, std::string_view reason)
 
 	std::cout << "Client " << nickname << " disconnected successfully." << std::endl;
 }
+

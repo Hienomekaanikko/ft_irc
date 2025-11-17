@@ -19,6 +19,7 @@ public:
 	void addClient(Client *client);
 	void addOperator(Client *client);
 	bool isOperator(Client *client) const;
+	bool isMember(Client *client);
 
 	void unsetPassword();
 	void unsetInviteOnly();
@@ -37,6 +38,7 @@ public:
 	const std::string &getChannelName() const;
 	const std::string &getTopic() const;
 	int getCurrentUsers() const;
+	const std::unordered_set<Client*>& getMembers() const;
 
 	bool isEmpty() const;
 
@@ -48,6 +50,7 @@ private:
 	std::string _topic;
 	bool _inviteOnly;
 	bool _topicProtected;
+	bool _limitSet;
 	int	_userLimit;
 	int _currentUsers;
 

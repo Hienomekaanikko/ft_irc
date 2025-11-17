@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/05 16:38:05 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/17 11:57:17 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/17 14:17:15 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,11 +26,8 @@ Channel::Channel(const std::string& name) : _channelName(name)
     {
         _modes[mode] = false;
     }
-
-    std::cout << "Modes at the construction: " << std::endl;
-    for (const auto& [key, value] : _modes) {
-        std::cout << key << " = " << value << "\n";
-    }
+    _limitSet = false;
+    _currentUsers = 0;
 }
 
 void Channel::addOperator(Client *client) {
@@ -57,6 +54,18 @@ void Channel::removeOperator(Client *client) {
     }
 }
 
+const std::unordered_set<Client*>& Channel::getMembers() const {
+        return _clients;
+    }
+
+bool Channel::isMember(Client *client) {
+    auto it = _clients.find(client);
+    if (it == _clients.end())
+        return false;
+    else
+        return true;
+}
+
 void Channel::setInviteOnly() {
     _inviteOnly = true;
     std::cout << _channelName << ": set to invite only" << std::endl;
@@ -70,8 +79,14 @@ void Channel::unsetInviteOnly() {
 // Adds a 'client' to the _clients list.
 void Channel::addClient(Client* client) 
 {
+    if (_limitSet) {
+        if (_currentUsers == _userLimit) {
+            throw std::runtime_error("The channel's userlimit is full");
+        }
+    }
     if (!_clients.insert(client).second)
         throw std::runtime_error("Client already in channel");
+    _currentUsers++;
 }
 
 // Removes a 'client' to the _clients list.
@@ -108,6 +123,7 @@ void Channel::setUserlimit(const std::string limit) {
     int val = static_cast<int>(n);
     _userLimit = val;
     std::cout << "User limit was set to " << limit << std::endl;
+    _limitSet = true;
 }
 
 void Channel::unsetUserlimit() {
@@ -115,14 +131,12 @@ void Channel::unsetUserlimit() {
     std::cout << "User limit was unset" << std::endl;
 }
 
-
 // Handles the MODE command actions:
 // i: Set/remove Invite-only channel
 // t: Set/remove the restrictions of the TOPIC command to channel operators
 // k: Set/remove the channel key (password)
 // o: Give/take channel operator privilege
 // l: Set/remove the user limit to channel
-
 void Channel::setMode(const std::vector<std::string_view>& params)
 {
     if (params.empty())
@@ -156,25 +170,20 @@ void Channel::setMode(const std::vector<std::string_view>& params)
             case 'i':
                 adding ? setInviteOnly() : unsetInviteOnly();
                 break;
-
             case 't':
                 adding ? setTopicProtection() : unsetTopicProtection();
                 break;
-
             case 'k':
                 adding ? setPassword(param) : unsetPassword();
                 break;
-
             case 'o':
                 adding ? addOperator(findClientByNickname(param))
                        : removeOperator(findClientByNickname(param));
                 break;
-
             case 'l':
                 adding ? setUserlimit(param) : unsetUserlimit();
                 break;
         }
-
         _modes[c] = adding;
     }
 }

@@ -61,8 +61,10 @@ private:
 	void handleQUIT(Client &client, const std::vector<std::string_view> &params);
 	void handleJOIN(Client &client, const std::vector<std::string_view> &params);
 	void handleMODE(Client &client, const std::vector<std::string_view> &params);
+	void handlePRIVMSG(Client &client, const std::vector<std::string_view> &params);
 
 	void maybeRegistered(Client &client);
+	Client* findClientByNick(const std::string &nick);
 
 	// Message sending
 	void 		sendNumeric(Client &client, int numeric, const std::string_view msg);
@@ -71,3 +73,5 @@ private:
 	// Client disconnection, cleanup
 	void disconnectClient(int fd, std::string_view reason);
 };
+
+void sendToClient(const Client &client, const std::string &message);
