@@ -22,6 +22,15 @@ public:
 	void run();
 	void shutdown();
 
+	void handlePASS(Client &client, const std::vector<std::string_view> &params);
+	void handleNICK(Client &client, const std::vector<std::string_view> &params);
+	void handleUSER(Client &client, const std::vector<std::string_view> &params);
+	void handlePING(Client &client, const std::vector<std::string_view> &params);
+	void handleQUIT(Client &client, const std::vector<std::string_view> &params);
+	void handleJOIN(Client &client, const std::vector<std::string_view> &params);
+	void handleMODE(Client &client, const std::vector<std::string_view> &params);
+	void handlePRIVMSG(Client &client, const std::vector<std::string_view> &params);
+	
 private:
 	static const int 				BUFFER_SIZE = 1024;
 	int 							_port;
@@ -34,12 +43,12 @@ private:
 	std::unordered_map<int, Client> _clients;  		// fd -> Client
 	std::unordered_map<std::string, Channel> _channels; // channel name -> Channel
 	bool							_running{false};
-
+	
 	// Main server functions
 	void initSocket();
 	void setNonBlocking(int fd);
 	void mainLoop();
-
+	
 	// Event handlers
 	void handleNewConnection();
 	void handleClientRead(std::size_t index);
@@ -47,21 +56,14 @@ private:
 	
 	// Command processing
 	void processLine(int clientFd, std::string_view line);
-
+	
 	struct ParsedCommand {
 		std::string_view command;
 		std::vector<std::string_view> params;
 	};
 	ParsedCommand parseCommand(std::string_view line);
-
-	void handlePASS(Client &client, const std::vector<std::string_view> &params);
-	void handleNICK(Client &client, const std::vector<std::string_view> &params);
-	void handleUSER(Client &client, const std::vector<std::string_view> &params);
-	void handlePING(Client &client, const std::vector<std::string_view> &params);
-	void handleQUIT(Client &client, const std::vector<std::string_view> &params);
-	void handleJOIN(Client &client, const std::vector<std::string_view> &params);
-	void handleMODE(Client &client, const std::vector<std::string_view> &params);
-	void handlePRIVMSG(Client &client, const std::vector<std::string_view> &params);
+	
+	void sendTo(Client &client, const std::string &message);
 
 	void maybeRegistered(Client &client);
 	Client* findClientByNick(const std::string &nick);
@@ -73,5 +75,3 @@ private:
 	// Client disconnection, cleanup
 	void disconnectClient(int fd, std::string_view reason);
 };
-
-void sendToClient(const Client &client, const std::string &message);

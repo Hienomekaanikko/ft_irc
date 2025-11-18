@@ -315,30 +315,6 @@ void Server::processLine(int clientFd, std::string_view line)
 		std::cout << "Unknown command: " << upper << std::endl;
 }
 
-void sendToClient(const Client &client, const std::string &message)
-{
-	if (client.getFd() < 0)
-		return; // invalid socket
-
-	ssize_t totalSent = 0;
-	ssize_t msgLen = message.size();
-
-	while (totalSent < msgLen)
-	{
-		ssize_t sent = send(client.getFd(),
-							message.c_str() + totalSent,
-							msgLen - totalSent,
-							0); // flags = 0
-		if (sent <= 0)
-		{
-			// Error or connection closed
-			// You may want to mark client as disconnected
-			break;
-		}
-		totalSent += sent;
-	}
-}
-
 /*
 ** Parse a command line into command and parameters
 ** Returns a ParsedCommand struct, containing the command and a vector of parameters
@@ -389,6 +365,25 @@ Server::ParsedCommand Server::parseCommand(std::string_view line)
 	}
 	// No command was found
 	return result;
+}
+
+void Server::sendTo(Client &client, const std::string &message)
+{
+	if (client.getFd() < 0)
+		return; // invalid socket
+
+	// Append to the client's write buffer
+	client.queueMsg(message);
+
+	// Ensure POLLOUT is set for this client in the server's poll fds
+	for (std::size_t i = 0; i < _fds.size(); ++i)
+	{
+		if (_fds[i].fd == client.getFd())
+		{
+			_fds[i].events |= POLLOUT;
+			break;
+		}
+	}
 }
 
 /*
@@ -464,7 +459,7 @@ void Server::handlePING(Client &client, const std::vector<std::string_view> &par
 		return;
 	}
 	std::string pongMsg = "PONG :" + std::string(params[0]) + "\r\n";
-	client.queueMsg(pongMsg);
+	sendTo(client, pongMsg);
 }
 
 /*
@@ -571,8 +566,9 @@ void Server::sendNumeric(Client &client, int numeric, const std::string_view msg
 	std::ostringstream oss;
 	oss << ":" << _serverName << " " << std::setfill('0') << std::setw(3)
 		<< numeric << " " << formatPrefix(client) << " :" << msg << "\r\n";
-	client.queueMsg(oss.str());
+	sendTo(client, oss.str());
 }
+
 /*
 ** Format the prefix for messages from the server
 */

@@ -27,8 +27,10 @@ void Server::handlePRIVMSG(Client &client, const std::vector<std::string_view> &
         sendNumeric(client, 412, ":No text to send"); // ERR_NOTEXTTOSEND
         return;
     }
+
     std::string target(params[0]);
     std::string msg = joinParams(params, 1);
+    
     if (target[0] == '#') {
 		// Message to channel
 		auto it = _channels.find(target);
@@ -50,7 +52,7 @@ void Server::handlePRIVMSG(Client &client, const std::vector<std::string_view> &
 
         for (Client *member : chan.getMembers()) {
             if (member->getFd() != client.getFd())    // do not send back to sender
-                sendToClient(*member, message);
+                sendTo(*member, message);
         }
     } else {
         // Private message to a nickname
@@ -66,7 +68,7 @@ void Server::handlePRIVMSG(Client &client, const std::vector<std::string_view> &
 		//same thing here (should probably add the getHostname() but i dont fully understand what it means yet.)
         std::string message = prefix + " PRIVMSG " + target + " :" + msg + "\r\n";
 
-        sendToClient(*targetClient, message);
+        sendTo(*targetClient, message);
     }
 }
 
