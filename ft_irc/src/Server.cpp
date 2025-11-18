@@ -46,13 +46,13 @@ void Server::shutdown()
 	_running = false;
 
 	// Disconnect all clients
-	std::vector<int>fds;
+	std::vector<int> fds;
 	fds.reserve(_clients.size());
 	for (std::unordered_map<int, Client>::iterator it = _clients.begin(); it != _clients.end(); ++it)
 		fds.push_back(it->first);
 	for (int fd : fds)
 		disconnectClient(fd, "Server shutting down");
-	
+
 	// Close server socket
 	if (_serverFd >= 0)
 	{
@@ -86,7 +86,7 @@ void Server::mainLoop()
 			{
 				if (!_running)
 					break; // Exit loop if server is shutting down
-				continue; // Otherwise, continue polling
+				continue;  // Otherwise, continue polling
 			}
 			throw std::runtime_error("Poll failed: " + std::string(strerror(errno)));
 		}
@@ -382,6 +382,21 @@ void Server::sendTo(Client &client, const std::string &message)
 	}
 }
 
+void Server::sendToChannel(Channel &channel, const std::string &message, Client *exclude)
+{
+	const std::unordered_set<Client *> &clients = channel.getMembers();
+	for (Client *client : clients)
+	{
+		if (exclude && client == exclude)
+			continue;
+		if (!client)
+			continue;
+		sendTo(*client, message);
+	}
+}
+
+// ...existing code...
+
 /*
 ** Handle PASS command
 ** Verifies the password and updates client state
@@ -486,13 +501,16 @@ void Server::handleJOIN(Client &client, const std::vector<std::string_view> &par
 		std::cout << client.getNickname() << " joining channel: " << _channelName << std::endl;
 	else
 		std::cout << "Unknown client joining channel: " << _channelName << std::endl;
-	
+
 	auto it = _channels.find(_channelName);
 	if (it != _channels.end())
 	{
-		try{
+		try
+		{
 			it->second.addClient(&client);
-		} catch (const std::runtime_error &e) {
+		}
+		catch (const std::runtime_error &e)
+		{
 			sendNumeric(client, 471, _channelName + " :Cannot join channel (possibly full)");
 			return;
 		}
@@ -513,26 +531,56 @@ void Server::handleJOIN(Client &client, const std::vector<std::string_view> &par
 void Server::handleMODE(Client &client, const std::vector<std::string_view> &params)
 {
 	if (params.size() < 2) {
-		sendNumeric(client, 461, "MODE :Not enough parameters");
+		sendNumeric(client, 461, "MODE :Not enough parameters"); // ERR_NEEDMOREPARAMS
 		return;
 	}
-	std::string	channel(params[0]);
-	auto it = _channels.find(channel);
+
+	std::string channelName(params[0]);
+	auto it = _channels.find(channelName);
 	if (it == _channels.end()) {
-		sendNumeric(client, 403, "MODE :No such channel");
+		sendNumeric(client, 403, channelName + " :No such channel"); // ERR_NOSUCHCHANNEL
+		return;
 	}
-	else {
-		if (it->second.isOperator(&client)){
-			try {
-				it->second.setMode(std::vector<std::string_view>(params.begin() + 1, params.end()));
-			} catch (std::exception &e) {
-				sendNumeric(client, 472, e.what());
-			}
-		}
-		else
-			sendNumeric(client, 482, "MODE :You're not channel operator");
+
+	Channel &chan = it->second;
+
+	if (!chan.isOperator(&client)) {
+		sendNumeric(client, 482, channelName + " :You're not channel operator"); // ERR_CHANOPRIVSNEEDED
+		return;
 	}
+
+	// Mode params that we pass down to Channel (everything after channel name)
+	std::vector<std::string_view> modeParams(params.begin() + 1, params.end());
+
+	try {
+		chan.setMode(modeParams); // modifies internal flags, password, limit, ops...
+	} catch (const std::exception &e) {
+		// Only the caller sees this error
+		sendNumeric(client, 472, e.what()); // ERR_UNKNOWNMODE or similar
+		return;
+	}
+
+	// If we reached here, the mode change succeeded.
+	// Now we must announce it to ALL channel members.
+
+	std::ostringstream oss;
+	// Prefix: :nick!user@host
+	oss << ":" << client.getNickname();
+	if (client.hasUsername())
+		oss << "!" << client.getUsername() << "@localhost"; // TODO: real host later
+
+	oss << " MODE " << channelName;
+
+	// Re-attach the exact mode string and its params (e.g. "+ik key 10 nick")
+	for (std::size_t i = 0; i < modeParams.size(); ++i) {
+		oss << " " << modeParams[i];
+	}
+	oss << "\r\n";
+
+	// Broadcast to everyone in channel (including the setter)
+	sendToChannel(chan, oss.str(), nullptr);
 }
+
 
 /*
 ** Check if client has completed registration
@@ -615,7 +663,7 @@ void Server::disconnectClient(int fd, std::string_view reason)
 		if (channel.isEmpty())
 			emptyChannels.push_back(channel.getChannelName());
 	}
-	
+
 	// Remove from clients map
 	_clients.erase(it);
 

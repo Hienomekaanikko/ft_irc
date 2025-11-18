@@ -63,6 +63,7 @@ private:
 	ParsedCommand parseCommand(std::string_view line);
 	
 	void sendTo(Client &client, const std::string &message);
+	void sendToChannel(Channel &channel, const std::string &message, Client *exclude);
 
 	void maybeRegistered(Client &client);
 	Client* findClientByNick(const std::string &nick);
