@@ -121,7 +121,9 @@ void Server::initSocket()
 	if (_serverFd < 0)
 		throw std::runtime_error("Socket creation failed: " + std::string(strerror(errno)));
 
-	setNonBlocking(_serverFd);
+	// Set socket to non-blocking mode
+	if (::fcntl(_serverFd, F_SETFL, O_NONBLOCK) < 0)
+		throw std::runtime_error("Set non-blocking mode failed: " + std::string(strerror(errno)));
 
 	int opt = 1;
 	if (::setsockopt(_serverFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
@@ -148,12 +150,6 @@ void Server::initSocket()
 	_fds.push_back(serverPollFd);
 }
 
-void Server::setNonBlocking(int fd)
-{
-	if (::fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
-		throw std::runtime_error("Set non-blocking mode failed: " + std::string(strerror(errno)));
-}
-
 /*
 ** Handle new client connections
 ** Accepts the connection, sets the socket to non-blocking,
@@ -176,7 +172,9 @@ void Server::handleNewConnection()
 		return;
 	}
 
-	setNonBlocking(clientFd);
+	// Set socket to non-blocking mode
+	if (::fcntl(clientFd, F_SETFL, O_NONBLOCK) < 0)
+		throw std::runtime_error("Set non-blocking mode failed: " + std::string(strerror(errno)));
 
 	std::cout << "New client connected: fd = " << clientFd << std::endl;
 
@@ -238,7 +236,7 @@ void Server::handleClientRead(std::size_t index)
 		}
 	}
 	if (client.dataToWrite())
-		_fds[index].events = POLLIN | POLLOUT;
+		_fds[index].events |= POLLOUT;
 }
 
 /*
@@ -262,13 +260,11 @@ void Server::handleClientWrite(std::size_t index)
 		{
 			if (errno == EWOULDBLOCK || errno == EAGAIN)
 				break;
-
 			std::perror("send");
 			disconnectClient(clientFd, "Send error");
 			return;
 		}
 	}
-
 	if (!client.dataToWrite())
 		_fds[index].events = POLLIN;
 }

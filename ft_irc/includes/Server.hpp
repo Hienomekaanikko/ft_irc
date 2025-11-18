@@ -46,7 +46,6 @@ private:
 	
 	// Main server functions
 	void initSocket();
-	void setNonBlocking(int fd);
 	void mainLoop();
 	
 	// Event handlers
