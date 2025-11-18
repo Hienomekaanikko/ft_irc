@@ -1,9 +1,10 @@
+#include "Server.hpp"
+
 #include <cstdlib>
 #include <iostream>
 #include <string>
 #include <csignal>
 
-#include "Server.hpp"
 
 static Server* g_server = 0;
 
