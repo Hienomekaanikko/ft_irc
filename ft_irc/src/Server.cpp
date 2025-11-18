@@ -498,7 +498,14 @@ void Server::handleJOIN(Client &client, const std::vector<std::string_view> &par
 	
 	auto it = _channels.find(_channelName);
 	if (it != _channels.end())
-		it->second.addClient(&client);
+	{
+		try{
+			it->second.addClient(&client);
+		} catch (const std::runtime_error &e) {
+			sendNumeric(client, 471, _channelName + " :Cannot join channel (possibly full)");
+			return;
+		}
+	}
 	else
 	{
 		Channel newChannel(_channelName);
@@ -619,8 +626,6 @@ void Server::disconnectClient(int fd, std::string_view reason)
 	
 	// Remove from clients map
 	_clients.erase(it);
-
-	::close(fd);
 
 	// Clean up empty channels
 	for (const std::string &chanName : emptyChannels)

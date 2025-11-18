@@ -82,6 +82,10 @@ void Channel::removeClient(Client* client)
 {
 	if (_clients.erase(client) == 0)
 		throw std::runtime_error("Client not found in channel");
+	if (_currentUsers > 0)
+		_currentUsers--;
+	if (isOperator(client))
+		removeOperator(client);
 }
 
 void Channel::setTopicProtection() {
