@@ -252,6 +252,7 @@ void Server::handleClientWrite(std::size_t index)
 
 	while (!wb.empty())
 	{
+		std::cout << "Sending: " << wb.data() << std::endl;
 		ssize_t sent = ::send(clientFd, wb.data(), wb.size(), 0);
 		if (sent > 0)
 		{
@@ -423,6 +424,16 @@ void Server::handlePASS(Client &client, const std::vector<std::string_view> &par
 	maybeRegistered(client);
 }
 
+bool Server::nickInUse(std::string_view nick) {
+	if (_clients.empty())
+		return false;
+	for (auto it = _clients.begin(); it != _clients.end(); ++it) {
+		if (it->second.getNickname() == nick)
+			return true;
+	}
+	return false;
+}
+
 /*
 ** Handle NICK command
 ** Sets the client's nickname
@@ -434,9 +445,17 @@ void Server::handleNICK(Client &client, const std::vector<std::string_view> &par
 		sendNumeric(client, 431, "No nickname given");
 		return;
 	}
-	client.setNickname(std::string(params[0]));
-	maybeRegistered(client);
+	if (nickInUse(params[0])) {
+		sendNumeric(client, 433, "* " + std::string(params[0]), "Nickname is already in use");
+	}
+	else {
+		client.setNickname(std::string(params[0]));
+		maybeRegistered(client);
+	}
 }
+
+//:ft_irc_server 433 * Zorma :Nickname is already in use
+
 
 /*
 ** Handle USER command
@@ -535,13 +554,13 @@ void Server::handleMODE(Client &client, const std::vector<std::string_view> &par
 		sendNumeric(client, 461, " Not enough parameters"); // ERR_NEEDMOREPARAMS
 		return;
 	}
-	if (params[0] == client.getNickname()) {
+	if (nickInUse(params[0])) {
 		return ;
 	}
 	std::string channelName(params[0]);
 	auto it = _channels.find(channelName);
 	if (it == _channels.end()) {
-		sendNumeric(client, 403, channelName, " No such channel"); // ERR_NOSUCHCHANNEL
+		sendNumeric(client, 403, channelName, " No such channel with" + std::string(params[0])); // ERR_NOSUCHCHANNEL
 		return;
 	}
 
@@ -629,9 +648,7 @@ void Server::sendNumeric(Client &client, int numeric, const std::string_view cha
 */
 std::string Server::formatPrefix(const Client &client) const
 {
-	if (client.hasNickname())
-		return client.getNickname();
-	return "anonymous";
+	return client.getNickname();
 }
 
 /*

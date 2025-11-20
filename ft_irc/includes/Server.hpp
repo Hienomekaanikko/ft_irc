@@ -67,6 +67,7 @@ private:
 
 	void maybeRegistered(Client &client);
 	Client* findClientByNick(const std::string &nick);
+	bool nickInUse(std::string_view nick);
 
 	// Message sending
 	void		sendNumeric(Client &client, int numeric, const std::string_view msg);
