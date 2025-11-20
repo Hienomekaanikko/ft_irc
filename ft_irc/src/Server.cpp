@@ -105,7 +105,6 @@ void Server::mainLoop()
 				if (revents & POLLIN)
 					handleClientRead(i);
 				if (revents & POLLOUT) {
-					std::cout << "writing!" << std::endl;
 					handleClientWrite(i);
 				}
 			}
@@ -253,7 +252,6 @@ void Server::handleClientWrite(std::size_t index)
 
 	while (!wb.empty())
 	{
-		std::cout << "write buffer is: " << wb.data() << std::endl;
 		ssize_t sent = ::send(clientFd, wb.data(), wb.size(), 0);
 		if (sent > 0)
 		{
@@ -538,7 +536,6 @@ void Server::handleMODE(Client &client, const std::vector<std::string_view> &par
 		return;
 	}
 	if (params[0] == client.getNickname()) {
-		std::cout << "not gona do it" << std::endl;
 		return ;
 	}
 	std::string channelName(params[0]);
