@@ -630,16 +630,25 @@ void Server::maybeRegistered(Client &client)
 void Server::sendNumeric(Client &client, int numeric, const std::string_view msg)
 {
 	std::ostringstream oss;
-	oss << ":" << _serverName << " " << std::setfill('0') << std::setw(3)
-		<< numeric << " " << formatPrefix(client) << " :" << msg << "\r\n";
+	oss << ":" << _serverName << " "
+		<< std::setfill('0') << std::setw(3) << numeric << " "
+		<< formatPrefix(client)
+		<< " :" << msg
+		<< "\r\n";
 	sendTo(client, oss.str());
 }
 
-void Server::sendNumeric(Client &client, int numeric, const std::string_view channel, const std::string_view msg)
+/*
+** Send a numeric reply to a client with channel context
+*/
+void Server::sendNumeric(Client &client, int numeric,
+						 const std::string_view channel,
+						 const std::string_view msg)
 {
 	std::ostringstream oss;
-	oss << ":" << _serverName << " " << std::setfill('0') << std::setw(3)
-		<< numeric << " " << channel << " " << formatPrefix(client) << " :" << msg << "\r\n";
+	oss << ":" << _serverName << " "
+		<< std::setfill('0') << std::setw(3) << numeric << " "
+		<< channel << " " << formatPrefix(client) << " :" << msg << "\r\n";
 	sendTo(client, oss.str());
 }
 
