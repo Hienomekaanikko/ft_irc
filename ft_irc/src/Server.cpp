@@ -104,8 +104,10 @@ void Server::mainLoop()
 			{
 				if (revents & POLLIN)
 					handleClientRead(i);
-				if (revents & POLLOUT)
+				if (revents & POLLOUT) {
+					std::cout << "writing!" << std::endl;
 					handleClientWrite(i);
+				}
 			}
 		}
 	}
@@ -251,6 +253,7 @@ void Server::handleClientWrite(std::size_t index)
 
 	while (!wb.empty())
 	{
+		std::cout << "write buffer is: " << wb.data() << std::endl;
 		ssize_t sent = ::send(clientFd, wb.data(), wb.size(), 0);
 		if (sent > 0)
 		{
@@ -531,21 +534,24 @@ void Server::handleJOIN(Client &client, const std::vector<std::string_view> &par
 void Server::handleMODE(Client &client, const std::vector<std::string_view> &params)
 {
 	if (params.size() < 2) {
-		sendNumeric(client, 461, "MODE :Not enough parameters"); // ERR_NEEDMOREPARAMS
+		sendNumeric(client, 461, " Not enough parameters"); // ERR_NEEDMOREPARAMS
 		return;
 	}
-
+	if (params[0] == client.getNickname()) {
+		std::cout << "not gona do it" << std::endl;
+		return ;
+	}
 	std::string channelName(params[0]);
 	auto it = _channels.find(channelName);
 	if (it == _channels.end()) {
-		sendNumeric(client, 403, channelName + " :No such channel"); // ERR_NOSUCHCHANNEL
+		sendNumeric(client, 403, channelName, " No such channel"); // ERR_NOSUCHCHANNEL
 		return;
 	}
 
 	Channel &chan = it->second;
 
 	if (!chan.isOperator(&client)) {
-		sendNumeric(client, 482, channelName + " :You're not channel operator"); // ERR_CHANOPRIVSNEEDED
+		sendNumeric(client, 482, channelName, " You're not channel operator"); // ERR_CHANOPRIVSNEEDED
 		return;
 	}
 
@@ -610,6 +616,14 @@ void Server::sendNumeric(Client &client, int numeric, const std::string_view msg
 	std::ostringstream oss;
 	oss << ":" << _serverName << " " << std::setfill('0') << std::setw(3)
 		<< numeric << " " << formatPrefix(client) << " :" << msg << "\r\n";
+	sendTo(client, oss.str());
+}
+
+void Server::sendNumeric(Client &client, int numeric, const std::string_view channel, const std::string_view msg)
+{
+	std::ostringstream oss;
+	oss << ":" << _serverName << " " << std::setfill('0') << std::setw(3)
+		<< numeric << " " << channel << " " << formatPrefix(client) << " :" << msg << "\r\n";
 	sendTo(client, oss.str());
 }
 

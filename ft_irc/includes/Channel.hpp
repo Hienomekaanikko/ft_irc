@@ -41,7 +41,7 @@ public:
 	const std::unordered_set<Client*>& getMembers() const;
 
 	bool isEmpty() const;
-
+	
 	Client *findClientByNickname(const std::string &nickname) const;
 
 private:

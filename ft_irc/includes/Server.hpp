@@ -69,7 +69,8 @@ private:
 	Client* findClientByNick(const std::string &nick);
 
 	// Message sending
-	void 		sendNumeric(Client &client, int numeric, const std::string_view msg);
+	void		sendNumeric(Client &client, int numeric, const std::string_view msg);
+	void		sendNumeric(Client &client, int numeric, const std::string_view channel, const std::string_view msg);
 	std::string formatPrefix(const Client &client) const;
 
 	// Client disconnection, cleanup
