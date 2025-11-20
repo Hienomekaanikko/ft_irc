@@ -18,6 +18,7 @@ public:
 
 	void addClient(Client *client);
 	void addOperator(Client *client);
+	void banUser(Client *client);
 	bool isOperator(Client *client) const;
 	bool isMember(Client *client);
 
@@ -25,6 +26,7 @@ public:
 	void unsetInviteOnly();
 	void unsetTopicProtection();
 	void unsetUserlimit();
+
 	void setPassword(const std::string &password);
 	void setInviteOnly();
 	void setTopicProtection();
@@ -39,10 +41,15 @@ public:
 	const std::string &getTopic() const;
 	int getCurrentUsers() const;
 	const std::unordered_set<Client*>& getMembers() const;
-	bool getPasswordRequired() const;
 	std::string getPassword() const;
+	int getUserLimit() const;
 
+	bool PasswordRequired() const;
+	bool UserlimitSet() const;
+	bool isInviteOnly() const;
 	bool isEmpty() const;
+	bool isInvited(Client* client) const;
+	bool isBanned(Client* client) const;
 	
 	Client *findClientByNickname(const std::string &nickname) const;
 
@@ -52,7 +59,7 @@ private:
 	std::string _topic;
 	bool _inviteOnly;
 	bool _passwordRequired;
-	// bool _topicProtected;
+	bool _topicProtected;
 	bool _limitSet;
 	int	_userLimit;
 	int _currentUsers;
@@ -61,4 +68,5 @@ private:
 	std::unordered_set<Client *> _clients;
 	std::unordered_set<Client *> _operators;
 	std::unordered_set<Client *> _banned;
+	std::unordered_set<Client *> _invited;
 };

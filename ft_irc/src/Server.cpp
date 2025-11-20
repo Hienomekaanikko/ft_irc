@@ -517,28 +517,32 @@ void Server::handleJOIN(Client &client, const std::vector<std::string_view> &par
 	}
 
 	std::string _channelName(params[0]);
-	// if (client.hasNickname())
-	// 	std::cout << client.getNickname() << " joining channel: " << _channelName << std::endl;
-	// else
-	// 	std::cout << "Unknown client joining channel: " << _channelName << std::endl;
 	auto it = _channels.find(_channelName);
 	if (it != _channels.end())
 	{
-		if (it->second.getPasswordRequired()){
+		if (it->second.PasswordRequired()){
 			if (params[1].empty() || it->second.getPassword() != params[1]) {
 				sendNumeric(client, 475, _channelName + " :Password required/Invalid password");
 				return ;
 			}
 		}
-		try
-		{
-			it->second.addClient(&client);
+		if (it->second.UserlimitSet()) {
+			if (it->second.getUserLimit() == it->second.getCurrentUsers()) {
+				sendNumeric(client, 471, _channelName + " :Channel is full");
+				return ;
+			}
 		}
-		catch (const std::runtime_error &e)
-		{
-			sendNumeric(client, 471, _channelName + " :Cannot join channel (possibly full)");
-			return;
+		if (it->second.isInviteOnly()) {
+			if (!it->second.isInvited(&client)) {
+				sendNumeric(client, 473, _channelName + " :Channel is invite only");
+				return ;
+			}
 		}
+		if (it->second.isBanned(&client)) {
+			sendNumeric(client, 474, _channelName + " :Banned from channel");
+			return ;
+		}
+		it->second.addClient(&client);
 	}
 	else
 	{

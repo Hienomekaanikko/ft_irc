@@ -1,12 +1,19 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   Channel.cpp                                        :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2025/11/20 15:52:45 by msuokas           #+#    #+#             */
+/*   Updated: 2025/11/20 16:03:23 by msuokas          ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "Channel.hpp"
 
-// Creates the 'Channel' object
-// Initializes all of these mode 'switches' to false:
-// i: Set/remove Invite-only channel
-// t: Set/remove the restrictions of the TOPIC command to channel operators
-// k: Set/remove the channel key (password)
-// o: Give/take channel operator privilege
-// l: Set/remove the user limit to channel
+// Channel handling
+
 Channel::Channel(const std::string& name) : _channelName(name)
 {
 	std::string mode_list = "itkol";
@@ -17,7 +24,68 @@ Channel::Channel(const std::string& name) : _channelName(name)
 	_limitSet = false;
 	_currentUsers = 0;
 	_passwordRequired = false;
+	_limitSet = false;
+	_inviteOnly = false;
 }
+
+const std::string& Channel::getChannelName() const { return _channelName; }
+
+bool Channel::isEmpty() const { return _clients.empty(); }
+
+int Channel::getCurrentUsers() const { return _currentUsers; }
+
+// Client handling
+
+const std::unordered_set<Client*>& Channel::getMembers() const {
+		return _clients;
+	}
+
+bool Channel::isMember(Client *client) {
+	auto it = _clients.find(client);
+	if (it == _clients.end())
+		return false;
+	else
+		return true;
+}
+
+void Channel::addClient(Client* client) 
+{
+	_clients.insert(client).second;
+	_currentUsers++;
+}
+
+void Channel::removeClient(Client* client) 
+{
+	if (_clients.erase(client) == 0)
+		throw std::runtime_error("Client not found in channel");
+	if (_currentUsers > 0)
+		_currentUsers--;
+	if (isOperator(client))
+		removeOperator(client);
+}
+
+Client* Channel::findClientByNickname(const std::string& name) const
+{
+	for (auto* c : _clients) {
+		if (c->getNickname() == name)
+			return c;
+	}
+	return nullptr;
+}
+
+// Ban handling
+
+void Channel::banUser(Client *client) { _banned.emplace(client); }
+
+bool Channel::isBanned(Client *client) const {
+	auto it = _banned.find(client);
+	if (it == _banned.end()) {
+		return false;
+	}
+	return true;
+}
+
+// Operator handling
 
 void Channel::addOperator(Client *client) {
 	if (client == nullptr)
@@ -43,65 +111,9 @@ void Channel::removeOperator(Client *client) {
 	}
 }
 
-const std::unordered_set<Client*>& Channel::getMembers() const {
-		return _clients;
-	}
+bool Channel::isOperator(Client* client) const { return _operators.find(client) != _operators.end(); }
 
-bool Channel::isMember(Client *client) {
-	auto it = _clients.find(client);
-	if (it == _clients.end())
-		return false;
-	else
-		return true;
-}
-
-void Channel::setInviteOnly() {
-	_inviteOnly = true;
-	std::cout << _channelName << ": set to invite only" << std::endl;
-}
-
-void Channel::unsetInviteOnly() {
-	_inviteOnly = false;
-	std::cout << _channelName << ": invite only disabled" << std::endl;
-}
-
-// Adds a 'client' to the _clients list.
-void Channel::addClient(Client* client) 
-{
-	if (_limitSet) {
-		if (_currentUsers == _userLimit) {
-			throw std::runtime_error("The channel's userlimit is full");
-		}
-	}
-	if (!_clients.insert(client).second)
-		throw std::runtime_error("Client already in channel");
-	_currentUsers++;
-}
-
-// Removes a 'client' to the _clients list.
-void Channel::removeClient(Client* client) 
-{
-	if (_clients.erase(client) == 0)
-		throw std::runtime_error("Client not found in channel");
-	if (_currentUsers > 0)
-		_currentUsers--;
-	if (isOperator(client))
-		removeOperator(client);
-}
-
-void Channel::setTopicProtection() {
-	std::cout << _channelName << ": topic-protection enabled" << std::endl;
-}
-
-void Channel::unsetTopicProtection() {
-	std::cout << _channelName << ": topic-protection disabled" << std::endl;
-}
-
-// Returns boolean about the operator status of 'client'
-bool Channel::isOperator(Client* client) const 
-{
-	return _operators.find(client) != _operators.end();
-}
+// Userlimit handling
 
 void Channel::setUserlimit(const std::string limit) {
 	long long n;
@@ -124,12 +136,31 @@ void Channel::unsetUserlimit() {
 	std::cout << "User limit was unset" << std::endl;
 }
 
-// Handles the MODE command actions:
-// i: Set/remove Invite-only channel
-// t: Set/remove the restrictions of the TOPIC command to channel operators
-// k: Set/remove the channel key (password)
-// o: Give/take channel operator privilege
-// l: Set/remove the user limit to channel
+int Channel::getUserLimit() const {
+	return _userLimit;
+}
+
+bool Channel::UserlimitSet() const {
+	return _limitSet;
+}
+
+// Invite handling
+
+void Channel::setInviteOnly() { _inviteOnly = true; }
+
+void Channel::unsetInviteOnly() { _inviteOnly = false; }
+
+bool Channel::isInviteOnly() const { return _inviteOnly; }
+
+bool Channel::isInvited(Client* client) const {
+	if (_invited.find(client) != _invited.end())
+		return true;
+	else
+		return false;
+}
+
+//  Mode handling
+
 void Channel::setMode(const std::vector<std::string_view>& params)
 {
 	if (params.empty())
@@ -181,15 +212,11 @@ void Channel::setMode(const std::vector<std::string_view>& params)
 	}
 }
 
-std::string Channel::getPassword() const {
-	return _password;
-}
+// Password handling
 
-bool Channel::getPasswordRequired() const {
-	return _passwordRequired;
-}
+std::string Channel::getPassword() const { return _password; }
+bool Channel::PasswordRequired() const { return _passwordRequired; }
 
-// Will be called from the setMode if the client permissions match
 void Channel::setPassword(const std::string& password) {
 	_password = password;
 	_passwordRequired = true;
@@ -201,30 +228,9 @@ void Channel::unsetPassword() {
 	std::cout << "Channel password was disabled" << std::endl;
 }
 
-// Returns the channel topic
+// Topic handling
+
+void Channel::setTopicProtection() { _topicProtected = true; }
+void Channel::unsetTopicProtection() { _topicProtected = false; }
 const std::string& Channel::getTopic() const { return _topic; }
-
-// This handles the setting of cmd TOPIC when its called. 
-// If MODE t is true, then only moderators can change the channel topic.
-// otherwise anyone can change it.
 void Channel::setTopic(const std::string& topic) { _topic = topic; }
-
-// Returns the name of the channel
-const std::string& Channel::getChannelName() const { return _channelName; }
-
-// Check empty channel
-bool Channel::isEmpty() const { return _clients.empty(); }
-
-// !!May not be useful!!: We can look for clients inside the channel by nickname
-Client* Channel::findClientByNickname(const std::string& name) const
-{
-	for (auto* c : _clients) {
-		if (c->getNickname() == name)
-			return c;
-	}
-	return nullptr;
-}
-
-int Channel::getCurrentUsers() const {
-	return _currentUsers;
-}
