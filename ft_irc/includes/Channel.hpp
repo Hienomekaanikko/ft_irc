@@ -39,6 +39,8 @@ public:
 	const std::string &getTopic() const;
 	int getCurrentUsers() const;
 	const std::unordered_set<Client*>& getMembers() const;
+	bool getPasswordRequired() const;
+	std::string getPassword() const;
 
 	bool isEmpty() const;
 	
@@ -49,6 +51,7 @@ private:
 	std::string _channelName;
 	std::string _topic;
 	bool _inviteOnly;
+	bool _passwordRequired;
 	// bool _topicProtected;
 	bool _limitSet;
 	int	_userLimit;

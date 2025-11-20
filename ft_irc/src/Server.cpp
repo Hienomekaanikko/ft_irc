@@ -517,14 +517,19 @@ void Server::handleJOIN(Client &client, const std::vector<std::string_view> &par
 	}
 
 	std::string _channelName(params[0]);
-	if (client.hasNickname())
-		std::cout << client.getNickname() << " joining channel: " << _channelName << std::endl;
-	else
-		std::cout << "Unknown client joining channel: " << _channelName << std::endl;
-
+	// if (client.hasNickname())
+	// 	std::cout << client.getNickname() << " joining channel: " << _channelName << std::endl;
+	// else
+	// 	std::cout << "Unknown client joining channel: " << _channelName << std::endl;
 	auto it = _channels.find(_channelName);
 	if (it != _channels.end())
 	{
+		if (it->second.getPasswordRequired()){
+			if (params[1].empty() || it->second.getPassword() != params[1]) {
+				sendNumeric(client, 475, _channelName + " :Password required/Invalid password");
+				return ;
+			}
+		}
 		try
 		{
 			it->second.addClient(&client);
@@ -578,6 +583,7 @@ void Server::handleMODE(Client &client, const std::vector<std::string_view> &par
 		chan.setMode(modeParams); // modifies internal flags, password, limit, ops...
 	} catch (const std::exception &e) {
 		// Only the caller sees this error
+		std::cout << "handling this->" << std::endl;
 		sendNumeric(client, 472, e.what()); // ERR_UNKNOWNMODE or similar
 		return;
 	}
@@ -631,7 +637,7 @@ void Server::sendNumeric(Client &client, int numeric, const std::string_view msg
 {
 	std::ostringstream oss;
 	oss << ":" << _serverName << " " << std::setfill('0') << std::setw(3)
-		<< numeric << " " << formatPrefix(client) << " :" << msg << "\r\n";
+		<< numeric << " " << formatPrefix(client) << " " << msg << "\r\n";
 	sendTo(client, oss.str());
 }
 

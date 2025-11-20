@@ -16,6 +16,7 @@ Channel::Channel(const std::string& name) : _channelName(name)
 	}
 	_limitSet = false;
 	_currentUsers = 0;
+	_passwordRequired = false;
 }
 
 void Channel::addOperator(Client *client) {
@@ -180,9 +181,18 @@ void Channel::setMode(const std::vector<std::string_view>& params)
 	}
 }
 
+std::string Channel::getPassword() const {
+	return _password;
+}
+
+bool Channel::getPasswordRequired() const {
+	return _passwordRequired;
+}
+
 // Will be called from the setMode if the client permissions match
 void Channel::setPassword(const std::string& password) {
 	_password = password;
+	_passwordRequired = true;
 	std::cout << "Channel password was set to: " << password << std::endl;
 }
 
