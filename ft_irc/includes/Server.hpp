@@ -43,6 +43,7 @@ private:
 	std::unordered_map<int, Client> _clients;  		// fd -> Client
 	std::unordered_map<std::string, Channel> _channels; // channel name -> Channel
 	bool							_running{false};
+	bool							_wasRegistered{false};
 	
 	// Main server functions
 	void initSocket();

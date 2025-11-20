@@ -252,7 +252,7 @@ void Server::handleClientWrite(std::size_t index)
 
 	while (!wb.empty())
 	{
-		std::cout << "Sending: " << wb.data() << std::endl;
+		// std::cout << "Sending: " << wb.data() << std::endl;
 		ssize_t sent = ::send(clientFd, wb.data(), wb.size(), 0);
 		if (sent > 0)
 		{
@@ -440,20 +440,52 @@ bool Server::nickInUse(std::string_view nick) {
 */
 void Server::handleNICK(Client &client, const std::vector<std::string_view> &params)
 {
+	// 1) No nickname given
 	if (params.empty())
 	{
-		sendNumeric(client, 431, "No nickname given");
+		sendNumeric(client, 431, "No nickname given"); // ERR_NONICKNAMEGIVEN
 		return;
 	}
-	if (nickInUse(params[0])) {
-		sendNumeric(client, 433, "* " + std::string(params[0]), "Nickname is already in use");
+
+	std::string newNick(params[0]);
+
+	// 2) If same as current nickname, do nothing
+	if (client.hasNickname() && client.getNickname() == newNick)
+		return;
+
+	// 3) Nick already in use by someone else?
+	if (nickInUse(newNick))
+	{
+		// server 433 <currentnick> <newnick> :Nickname is already in use
+		sendNumeric(client, 433, newNick, "Nickname is already in use");
+		return;
 	}
-	else {
-		client.setNickname(std::string(params[0]));
-		maybeRegistered(client);
+
+	bool hadNickBefore = client.hasNickname();
+	std::string oldNick;
+	if (hadNickBefore)
+		oldNick = client.getNickname();
+
+	// 4) Update nickname
+	client.setNickname(newNick);
+
+	// 5) If registered and actually changing nick, broadcast:
+	//    :oldNick!user@host NICK :newNick for irssi to pick up the change
+	if (hadNickBefore && oldNick != newNick)
+	{
+		std::ostringstream oss;
+		oss << ":" << oldNick;
+		if (client.hasUsername())
+			oss << "!" << client.getUsername() << "@localhost"; // TODO: real host later
+
+		oss << " NICK :" << newNick << "\r\n";
+		std::string msg = oss.str();
+
+		// Send to all connected clients (including the one who changed nick)
+		for (std::unordered_map<int, Client>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+			sendTo(it->second, msg);
 	}
 }
-
 //:ft_irc_server 433 * Zorma :Nickname is already in use
 
 
@@ -517,14 +549,19 @@ void Server::handleJOIN(Client &client, const std::vector<std::string_view> &par
 	}
 
 	std::string _channelName(params[0]);
-	if (client.hasNickname())
-		std::cout << client.getNickname() << " joining channel: " << _channelName << std::endl;
-	else
-		std::cout << "Unknown client joining channel: " << _channelName << std::endl;
-
+	// if (client.hasNickname())
+	// 	std::cout << client.getNickname() << " joining channel: " << _channelName << std::endl;
+	// else
+	// 	std::cout << "Unknown client joining channel: " << _channelName << std::endl;
 	auto it = _channels.find(_channelName);
 	if (it != _channels.end())
 	{
+		if (it->second.getPasswordRequired()){
+			if (params[1].empty() || it->second.getPassword() != params[1]) {
+				sendNumeric(client, 475, _channelName + " :Password required/Invalid password");
+				return ;
+			}
+		}
 		try
 		{
 			it->second.addClient(&client);
@@ -578,6 +615,7 @@ void Server::handleMODE(Client &client, const std::vector<std::string_view> &par
 		chan.setMode(modeParams); // modifies internal flags, password, limit, ops...
 	} catch (const std::exception &e) {
 		// Only the caller sees this error
+		std::cout << "handling this->" << std::endl;
 		sendNumeric(client, 472, e.what()); // ERR_UNKNOWNMODE or similar
 		return;
 	}
@@ -620,6 +658,7 @@ void Server::maybeRegistered(Client &client)
 		sendNumeric(client, 002, "Your host is " + _serverName);
 		sendNumeric(client, 003, "This server was created just now");
 		sendNumeric(client, 004, _serverName + " ft_irc_server v1.0");
+		_wasRegistered = true;
 	}
 }
 
@@ -630,11 +669,8 @@ void Server::maybeRegistered(Client &client)
 void Server::sendNumeric(Client &client, int numeric, const std::string_view msg)
 {
 	std::ostringstream oss;
-	oss << ":" << _serverName << " "
-		<< std::setfill('0') << std::setw(3) << numeric << " "
-		<< formatPrefix(client)
-		<< " :" << msg
-		<< "\r\n";
+	oss << ":" << _serverName << " " << std::setfill('0') << std::setw(3)
+		<< numeric << " " << formatPrefix(client) << " " << msg << "\r\n";
 	sendTo(client, oss.str());
 }
 
