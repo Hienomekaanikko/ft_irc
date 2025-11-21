@@ -3,7 +3,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
-
+#include <string_view>
 
 std::string joinParams(const std::vector<std::string_view> &params, size_t start = 1) {
 	if (params.size() <= start) return "";

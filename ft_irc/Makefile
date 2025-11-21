@@ -4,7 +4,7 @@ NAME = ircserv
 # Compiler and flags
 CC 		= c++
 STD 	= -std=c++17
-CFLAGS 	= -Wall -Wextra -Werror ${STD} -MMD
+CFLAGS 	= -Wall -Wextra -Werror $(STD) -MMD
 
 # Header files
 HEADERS = -I ./includes

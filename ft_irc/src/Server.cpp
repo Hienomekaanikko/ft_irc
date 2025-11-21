@@ -4,7 +4,6 @@
 #include <iomanip>
 #include <sstream>
 #include <cstring>
-#include <string_view>
 #include <cstdlib>
 #include <cerrno>
 #include <unistd.h>
@@ -310,9 +309,44 @@ void Server::processLine(int clientFd, std::string_view line)
 	else if (upper == "PRIVMSG")
 		handlePRIVMSG(client, cmd.params);
 	else
-		std::cout << "Unknown command: " << upper << std::endl;
+	{
+		sendNumeric(client, 421, std::string(cmd.command), "Unknown command");
+	}
 }
 
+/*
+** Send a numeric reply to a client
+** Formats and queues the message in the client's write buffer
+*/
+void Server::sendNumeric(Client &client, int numeric, const std::string_view msg)
+{
+	std::ostringstream oss;
+	oss << ":" << _serverName << " " << std::setfill('0') << std::setw(3)
+		<< numeric << " " << formatPrefix(client) << " " << msg << "\r\n";
+	sendTo(client, oss.str());
+}
+
+/*
+** Send a numeric reply to a client with channel context
+*/
+void Server::sendNumeric(Client &client, int numeric,
+						 const std::string_view channel,
+						 const std::string_view msg)
+{
+	std::ostringstream oss;
+	oss << ":" << _serverName << " "
+		<< std::setfill('0') << std::setw(3) << numeric << " "
+		<< channel << " " << formatPrefix(client) << " :" << msg << "\r\n";
+	sendTo(client, oss.str());
+}
+
+/*
+** Format the prefix for messages from the server
+*/
+std::string Server::formatPrefix(const Client &client) const
+{
+	return client.getNickname();
+}
 /*
 ** Parse a command line into command and parameters
 ** Returns a ParsedCommand struct, containing the command and a vector of parameters
@@ -664,40 +698,6 @@ void Server::maybeRegistered(Client &client)
 		sendNumeric(client, 004, _serverName + " ft_irc_server v1.0");
 		_wasRegistered = true;
 	}
-}
-
-/*
-** Send a numeric reply to a client
-** Formats and queues the message in the client's write buffer
-*/
-void Server::sendNumeric(Client &client, int numeric, const std::string_view msg)
-{
-	std::ostringstream oss;
-	oss << ":" << _serverName << " " << std::setfill('0') << std::setw(3)
-		<< numeric << " " << formatPrefix(client) << " " << msg << "\r\n";
-	sendTo(client, oss.str());
-}
-
-/*
-** Send a numeric reply to a client with channel context
-*/
-void Server::sendNumeric(Client &client, int numeric,
-						 const std::string_view channel,
-						 const std::string_view msg)
-{
-	std::ostringstream oss;
-	oss << ":" << _serverName << " "
-		<< std::setfill('0') << std::setw(3) << numeric << " "
-		<< channel << " " << formatPrefix(client) << " :" << msg << "\r\n";
-	sendTo(client, oss.str());
-}
-
-/*
-** Format the prefix for messages from the server
-*/
-std::string Server::formatPrefix(const Client &client) const
-{
-	return client.getNickname();
 }
 
 /*
