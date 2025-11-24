@@ -291,7 +291,21 @@ void Server::processLine(int clientFd, std::string_view line)
 	std::string upper(cmd.command);
 	for (char &c : upper)
 		c = std::toupper(static_cast<unsigned char>(c));
+ 
+	// commands allowed BEFORE registration
+	bool preRegAllowed = (upper == "PASS" ||
+						  upper == "NICK" ||
+						  upper == "USER" ||
+						  upper == "CAP"  ||
+						  upper == "QUIT" ||
+						  upper == "PING");
 
+	if (!client.isRegistered() && !preRegAllowed)
+	{
+		sendNumeric(client, 451, ":You have not registered"); // ERR_NOTREGISTERED
+		return;
+	}
+	
 	if (upper == "PASS")
 		handlePASS(client, cmd.params);
 	else if (upper == "NICK")
@@ -300,7 +314,7 @@ void Server::processLine(int clientFd, std::string_view line)
 		handleUSER(client, cmd.params);
 	else if (upper == "PING")
 		handlePING(client, cmd.params);
-	else if (upper == "QUIT")
+	else if (upper == "QUIT")	
 		handleQUIT(client, cmd.params);
 	else if (upper == "JOIN")
 		handleJOIN(client, cmd.params);
@@ -308,10 +322,10 @@ void Server::processLine(int clientFd, std::string_view line)
 		handleMODE(client, cmd.params);
 	else if (upper == "PRIVMSG")
 		handlePRIVMSG(client, cmd.params);
+	else if (upper == "CAP")
+		return;
 	else
-	{
 		sendNumeric(client, 421, std::string(cmd.command), "Unknown command");
-	}
 }
 
 /*
