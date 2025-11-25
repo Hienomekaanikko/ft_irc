@@ -45,3 +45,17 @@ Example:
 - **MODE** - Set channel modes (operators only)
 
 ## Testing with IRC Client
+
+You can test the server with any IRC client. Example with netcat:
+
+```bash
+nc localhost 6667
+PASS mypassword
+NICK mynickname
+USER mynickname 0 * :My Real Name
+JOIN #mychannel
+PRIVMSG #mychannel :Hello, World!
+QUIT
+```
+
+Or use a proper IRC client like irssi, weechat, or HexChat.

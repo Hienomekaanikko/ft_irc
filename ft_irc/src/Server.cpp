@@ -4,7 +4,6 @@
 #include <iomanip>
 #include <sstream>
 #include <cstring>
-#include <string_view>
 #include <cstdlib>
 #include <cerrno>
 #include <unistd.h>
@@ -46,13 +45,13 @@ void Server::shutdown()
 	_running = false;
 
 	// Disconnect all clients
-	std::vector<int>fds;
+	std::vector<int> fds;
 	fds.reserve(_clients.size());
 	for (std::unordered_map<int, Client>::iterator it = _clients.begin(); it != _clients.end(); ++it)
 		fds.push_back(it->first);
 	for (int fd : fds)
 		disconnectClient(fd, "Server shutting down");
-	
+
 	// Close server socket
 	if (_serverFd >= 0)
 	{
@@ -86,7 +85,7 @@ void Server::mainLoop()
 			{
 				if (!_running)
 					break; // Exit loop if server is shutting down
-				continue; // Otherwise, continue polling
+				continue;  // Otherwise, continue polling
 			}
 			throw std::runtime_error("Poll failed: " + std::string(strerror(errno)));
 		}
@@ -104,8 +103,9 @@ void Server::mainLoop()
 			{
 				if (revents & POLLIN)
 					handleClientRead(i);
-				if (revents & POLLOUT)
+				if (revents & POLLOUT) {
 					handleClientWrite(i);
+				}
 			}
 		}
 	}
@@ -121,7 +121,9 @@ void Server::initSocket()
 	if (_serverFd < 0)
 		throw std::runtime_error("Socket creation failed: " + std::string(strerror(errno)));
 
-	setNonBlocking(_serverFd);
+	// Set socket to non-blocking mode
+	if (::fcntl(_serverFd, F_SETFL, O_NONBLOCK) < 0)
+		throw std::runtime_error("Set non-blocking mode failed: " + std::string(strerror(errno)));
 
 	int opt = 1;
 	if (::setsockopt(_serverFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
@@ -148,12 +150,6 @@ void Server::initSocket()
 	_fds.push_back(serverPollFd);
 }
 
-void Server::setNonBlocking(int fd)
-{
-	if (::fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
-		throw std::runtime_error("Set non-blocking mode failed: " + std::string(strerror(errno)));
-}
-
 /*
 ** Handle new client connections
 ** Accepts the connection, sets the socket to non-blocking,
@@ -176,7 +172,9 @@ void Server::handleNewConnection()
 		return;
 	}
 
-	setNonBlocking(clientFd);
+	// Set socket to non-blocking mode
+	if (::fcntl(clientFd, F_SETFL, O_NONBLOCK) < 0)
+		throw std::runtime_error("Set non-blocking mode failed: " + std::string(strerror(errno)));
 
 	std::cout << "New client connected: fd = " << clientFd << std::endl;
 
@@ -238,7 +236,7 @@ void Server::handleClientRead(std::size_t index)
 		}
 	}
 	if (client.dataToWrite())
-		_fds[index].events = POLLIN | POLLOUT;
+		_fds[index].events |= POLLOUT;
 }
 
 /*
@@ -250,9 +248,10 @@ void Server::handleClientWrite(std::size_t index)
 	Client &client = _clients.at(clientFd);
 
 	std::string &wb = client.getWriteBuffer();
-
+	
 	while (!wb.empty())
 	{
+		std::cout << "Sending: " << wb.data() << std::endl;
 		ssize_t sent = ::send(clientFd, wb.data(), wb.size(), 0);
 		if (sent > 0)
 		{
@@ -262,13 +261,11 @@ void Server::handleClientWrite(std::size_t index)
 		{
 			if (errno == EWOULDBLOCK || errno == EAGAIN)
 				break;
-
 			std::perror("send");
 			disconnectClient(clientFd, "Send error");
 			return;
 		}
 	}
-
 	if (!client.dataToWrite())
 		_fds[index].events = POLLIN;
 }
@@ -294,7 +291,23 @@ void Server::processLine(int clientFd, std::string_view line)
 	std::string upper(cmd.command);
 	for (char &c : upper)
 		c = std::toupper(static_cast<unsigned char>(c));
+ 
+	std::cout << "[DEBUG] Received command: " << upper << " from client " << client.getNickname() << std::endl;
+	
+	// commands allowed BEFORE registration
+	bool preRegAllowed = (upper == "PASS" ||
+						  upper == "NICK" ||
+						  upper == "USER" ||
+						  upper == "CAP"  ||
+						  upper == "QUIT" ||
+						  upper == "PING");
 
+	if (!client.isRegistered() && !preRegAllowed)
+	{
+		sendNumeric(client, 451, ":You have not registered"); // ERR_NOTREGISTERED
+		return;
+	}
+	
 	if (upper == "PASS")
 		handlePASS(client, cmd.params);
 	else if (upper == "NICK")
@@ -303,7 +316,7 @@ void Server::processLine(int clientFd, std::string_view line)
 		handleUSER(client, cmd.params);
 	else if (upper == "PING")
 		handlePING(client, cmd.params);
-	else if (upper == "QUIT")
+	else if (upper == "QUIT")	
 		handleQUIT(client, cmd.params);
 	else if (upper == "JOIN")
 		handleJOIN(client, cmd.params);
@@ -311,10 +324,54 @@ void Server::processLine(int clientFd, std::string_view line)
 		handleMODE(client, cmd.params);
 	else if (upper == "PRIVMSG")
 		handlePRIVMSG(client, cmd.params);
+	else if (upper == "CAP")
+		handleCAP(client, cmd.params);
+	else if (upper == "PART")
+		handlePART(client, cmd.params);
+	else if (upper == "WHOIS")
+		return;
 	else
-		std::cout << "Unknown command: " << upper << std::endl;
+		sendNumeric(client, 421, std::string(cmd.command), "Unknown command");
 }
 
+void Server::handleCAP(Client &client, const std::vector<std::string_view> &params)
+{
+	(void)client;
+	(void)params;
+}
+/*
+** Send a numeric reply to a client
+** Formats and queues the message in the client's write buffer
+*/
+void Server::sendNumeric(Client &client, int numeric, const std::string_view msg)
+{
+	std::ostringstream oss;
+	oss << ":" << _serverName << " " << std::setfill('0') << std::setw(3)
+		<< numeric << " " << formatPrefix(client) << " " << msg << "\r\n";
+	sendTo(client, oss.str());
+}
+
+/*
+** Send a numeric reply to a client with channel context
+*/
+void Server::sendNumeric(Client &client, int numeric,
+						 const std::string_view channel,
+						 const std::string_view msg)
+{
+	std::ostringstream oss;
+	oss << ":" << _serverName << " "
+		<< std::setfill('0') << std::setw(3) << numeric << " "
+		<< formatPrefix(client) << " " <<  channel << " " << msg << "\r\n";
+	sendTo(client, oss.str());
+}
+
+/*
+** Format the prefix for messages from the server
+*/
+std::string Server::formatPrefix(const Client &client) const
+{
+	return client.getNickname();
+}
 /*
 ** Parse a command line into command and parameters
 ** Returns a ParsedCommand struct, containing the command and a vector of parameters
@@ -386,12 +443,27 @@ void Server::sendTo(Client &client, const std::string &message)
 	}
 }
 
+void Server::sendToChannel(Channel &channel, const std::string &message, Client *exclude)
+{
+	const std::unordered_set<Client *> &clients = channel.getMembers();
+	for (Client *client : clients)
+	{
+		if (exclude && client == exclude)
+			continue;
+		if (!client)
+			continue;
+		sendTo(*client, message);
+	}
+}
+
 /*
 ** Handle PASS command
 ** Verifies the password and updates client state
 */
 void Server::handlePASS(Client &client, const std::vector<std::string_view> &params)
 {
+	// if (client.isRegistered())
+	// 	return;
 	if (client.isRegistered())
 	{
 		sendNumeric(client, 462, "You may not reregister");
@@ -411,20 +483,73 @@ void Server::handlePASS(Client &client, const std::vector<std::string_view> &par
 	maybeRegistered(client);
 }
 
+bool Server::nickInUse(std::string_view nick) {
+	if (_clients.empty())
+		return false;
+	for (auto it = _clients.begin(); it != _clients.end(); ++it) {
+		if (it->second.getNickname() == nick)
+			return true;
+	}
+	return false;
+}
+
 /*
 ** Handle NICK command
 ** Sets the client's nickname
 */
 void Server::handleNICK(Client &client, const std::vector<std::string_view> &params)
 {
+	// 1) No nickname given
 	if (params.empty())
 	{
-		sendNumeric(client, 431, "No nickname given");
+		sendNumeric(client, 431, "No nickname given"); // ERR_NONICKNAMEGIVEN
 		return;
 	}
-	client.setNickname(std::string(params[0]));
+
+	std::string newNick(params[0]);
+
+	// 2) If same as current nickname, do nothing
+	if (client.hasNickname() && client.getNickname() == newNick) {
+		std::cout << "dont join" << std::endl;
+		return;
+	}
+
+	// 3) Nick already in use by someone else?
+	if (nickInUse(newNick))
+	{
+		// server 433 <currentnick> <newnick> :Nickname is already in use
+		sendNumeric(client, 433, newNick, "Nickname is already in use");
+		return;
+	}
+
+	bool hadNickBefore = client.hasNickname();
+	std::string oldNick;
+	if (hadNickBefore)
+		oldNick = client.getNickname();
+
+	// 4) Update nickname
+	client.setNickname(newNick);
+
+	// 5) If registered and actually changing nick, broadcast:
+	//    :oldNick!user@host NICK :newNick for irssi to pick up the change
+	if (hadNickBefore && oldNick != newNick)
+	{
+		std::ostringstream oss;
+		oss << ":" << oldNick;
+		if (client.hasUsername())
+			oss << "!" << client.getUsername() << "@localhost"; // TODO: real host later
+
+		oss << " NICK :" << newNick << "\r\n";
+		std::string msg = oss.str();
+
+		// Send to all connected clients (including the one who changed nick)
+		for (std::unordered_map<int, Client>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+			sendTo(it->second, msg);
+	}
 	maybeRegistered(client);
 }
+//:ft_irc_server 433 * Zorma :Nickname is already in use
+
 
 /*
 ** Handle USER command
@@ -432,6 +557,8 @@ void Server::handleNICK(Client &client, const std::vector<std::string_view> &par
 */
 void Server::handleUSER(Client &client, const std::vector<std::string_view> &params)
 {
+	// if (client.isRegistered())
+	// 	return;
 	if (params.size() < 4)
 	{
 		sendNumeric(client, 461, "USER :Not enough parameters");
@@ -479,36 +606,51 @@ void Server::handleQUIT(Client &client, const std::vector<std::string_view> &par
 */
 void Server::handleJOIN(Client &client, const std::vector<std::string_view> &params)
 {
-	if (params.empty())
-	{
+	if (params.empty()) {
 		sendNumeric(client, 461, "JOIN :Not enough parameters");
 		return;
 	}
 
-	std::string _channelName(params[0]);
-	if (client.hasNickname())
-		std::cout << client.getNickname() << " joining channel: " << _channelName << std::endl;
-	else
-		std::cout << "Unknown client joining channel: " << _channelName << std::endl;
-	
-	auto it = _channels.find(_channelName);
-	if (it != _channels.end())
-	{
-		try{
-			it->second.addClient(&client);
-		} catch (const std::runtime_error &e) {
-			sendNumeric(client, 471, _channelName + " :Cannot join channel (possibly full)");
-			return;
-		}
-	}
-	else
-	{
-		Channel newChannel(_channelName);
+	std::string channelName(params[0]);
+	Channel *chan = nullptr;
+
+	auto it = _channels.find(channelName);
+	if (it == _channels.end()) {
+		Channel newChannel(channelName);
 		newChannel.addClient(&client);
 		newChannel.addOperator(&client);
-		_channels.emplace(_channelName, newChannel);
+		auto [emplacedIt, _] = _channels.emplace(channelName, std::move(newChannel));
+		chan = &emplacedIt->second;
+	} else {
+		chan = &it->second;
+		if (chan->PasswordRequired() && (params.size() < 2 || chan->getPassword() != params[1])) {
+			sendNumeric(client, 475, channelName + " :Password required/Invalid password");
+			return;
+		}
+		if (chan->UserlimitSet() && chan->getCurrentUsers() >= chan->getUserLimit()) {
+			sendNumeric(client, 471, channelName + " :Channel is full");
+			return;
+		}
+		if (chan->isInviteOnly() && !chan->isInvited(&client)) {
+			sendNumeric(client, 473, channelName + " :Channel is invite only");
+			return;
+		}
+		if (chan->isBanned(&client)) {
+			sendNumeric(client, 474, channelName + " :Banned from channel");
+			return;
+		}
+
+		chan->addClient(&client);
 	}
+	// Broadcast the JOIN message
+	std::ostringstream joinMsg;
+	joinMsg << ":" << client.getNickname();
+	if (client.hasUsername())
+		joinMsg << "!" << client.getUsername() << "@localhost";
+	joinMsg << " JOIN " << channelName << "\r\n";
+	sendToChannel(*chan, joinMsg.str(), nullptr);
 }
+
 
 /*
 ** Handle MODE command
@@ -517,25 +659,107 @@ void Server::handleJOIN(Client &client, const std::vector<std::string_view> &par
 void Server::handleMODE(Client &client, const std::vector<std::string_view> &params)
 {
 	if (params.size() < 2) {
-		sendNumeric(client, 461, "MODE :Not enough parameters");
+		sendNumeric(client, 461, " Not enough parameters"); // ERR_NEEDMOREPARAMS
 		return;
 	}
-	std::string	channel(params[0]);
-	auto it = _channels.find(channel);
+	if (nickInUse(params[0])) {
+		return ;
+	}
+	std::string channelName(params[0]);
+	auto it = _channels.find(channelName);
 	if (it == _channels.end()) {
-		sendNumeric(client, 403, "MODE :No such channel");
+		sendNumeric(client, 403, channelName, "No such channel"); // ERR_NOSUCHCHANNEL
+		return;
 	}
-	else {
-		if (it->second.isOperator(&client)){
-			try {
-				it->second.setMode(std::vector<std::string_view>(params.begin() + 1, params.end()));
-			} catch (std::exception &e) {
-				sendNumeric(client, 472, e.what());
-			}
+
+	Channel &chan = it->second;
+
+	if (!chan.isOperator(&client)) {
+		sendNumeric(client, 482, channelName, " You're not channel operator"); // ERR_CHANOPRIVSNEEDED
+		return;
+	}
+
+	// Mode params that we pass down to Channel (everything after channel name)
+	std::vector<std::string_view> modeParams(params.begin() + 1, params.end());
+
+	try {
+		chan.setMode(modeParams); // modifies internal flags, password, limit, ops...
+	} catch (const errs &e) {
+		// Only the caller sees this error
+		sendNumeric(client, e.num, channelName, e.msg); // ERR_UNKNOWNMODE or similar
+		return;
+	}
+
+	// If we reached here, the mode change succeeded.
+	// Now we must announce it to ALL channel members.
+
+	std::ostringstream oss;
+	// Prefix: :nick!user@host
+	oss << ":" << client.getNickname();
+	if (client.hasUsername())
+		oss << "!" << client.getUsername() << "@localhost"; // TODO: real host later
+
+	oss << " MODE " << channelName;
+
+	// Re-attach the exact mode string and its params (e.g. "+ik key 10 nick")
+	for (std::size_t i = 0; i < modeParams.size(); ++i) {
+		oss << " " << modeParams[i];
+	}
+	oss << "\r\n";
+
+	// Broadcast to everyone in channel (including the setter)
+	sendToChannel(chan, oss.str(), nullptr);
+}
+
+void Server::handlePART(Client &client, const std::vector<std::string_view> &params)
+{
+	if (params.empty()) {
+		sendNumeric(client, 461, "PART :Not enough parameters");
+		return;
+	}
+	
+	std::string channelName(params[0]);
+
+	auto it = _channels.find(channelName);
+	if (it == _channels.end()) {
+		sendNumeric(client, 403, channelName + " :No such channel");
+		return;
+	}
+	
+	Channel &chan = it->second;
+
+	if (!chan.isMember(&client)) {
+		sendNumeric(client, 442, channelName + " :You're not on that channel");
+		return;
+	}
+	
+	std::string reason = "";
+	if (params.size() > 1)
+	{
+		std::ostringstream reasonStream;
+		for (std::size_t i = 1; i < params.size(); ++i)
+		{
+			if (i > 1)
+				reasonStream << " ";
+			reasonStream << params[i];
 		}
-		else
-			sendNumeric(client, 482, "MODE :You're not channel operator");
+		reason = reasonStream.str();
 	}
+
+	// Broadcast PART to all channel members
+	std::ostringstream partMsg;
+	partMsg << ":" << client.getNickname();
+	if (client.hasUsername())
+		partMsg << "!" << client.getUsername() << "@localhost"; // TODO: real host later
+	partMsg << " PART " << channelName;
+	if (!reason.empty())
+		partMsg << " :" << reason;
+	partMsg << "\r\n";
+
+	sendToChannel(chan, partMsg.str(), nullptr);
+
+	// Remove client from channel
+	chan.removeClient(&client);
 }
 
 /*
@@ -554,29 +778,8 @@ void Server::maybeRegistered(Client &client)
 		sendNumeric(client, 002, "Your host is " + _serverName);
 		sendNumeric(client, 003, "This server was created just now");
 		sendNumeric(client, 004, _serverName + " ft_irc_server v1.0");
+		_wasRegistered = true;
 	}
-}
-
-/*
-** Send a numeric reply to a client
-** Formats and queues the message in the client's write buffer
-*/
-void Server::sendNumeric(Client &client, int numeric, const std::string_view msg)
-{
-	std::ostringstream oss;
-	oss << ":" << _serverName << " " << std::setfill('0') << std::setw(3)
-		<< numeric << " " << formatPrefix(client) << " :" << msg << "\r\n";
-	sendTo(client, oss.str());
-}
-
-/*
-** Format the prefix for messages from the server
-*/
-std::string Server::formatPrefix(const Client &client) const
-{
-	if (client.hasNickname())
-		return client.getNickname();
-	return "anonymous";
 }
 
 /*
@@ -619,7 +822,7 @@ void Server::disconnectClient(int fd, std::string_view reason)
 		if (channel.isEmpty())
 			emptyChannels.push_back(channel.getChannelName());
 	}
-	
+
 	// Remove from clients map
 	_clients.erase(it);
 
