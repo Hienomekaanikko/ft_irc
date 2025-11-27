@@ -36,7 +36,11 @@ public:
 	void handleMODE(Client &client, const std::vector<std::string_view> &params);
 	void handlePART(Client &client, const std::vector<std::string_view> &params);
 	void handlePRIVMSG(Client &client, const std::vector<std::string_view> &params);
+	void handleTOPIC(Client &client, const std::vector<std::string_view> &params);
 	void handleCAP(Client &client, const std::vector<std::string_view> &params);
+	void handleKICK(Client &client, const std::vector<std::string_view> &params);
+	void handleINVITE(Client &client, const std::vector<std::string_view> &params);
+	void _sendResponse(std::string response, int fd);
 	
 private:
 	static const int 				BUFFER_SIZE = 1024;
@@ -80,8 +84,9 @@ private:
 	// Message sending
 	void sendNumeric(Client &client, int numeric, const std::string_view msg);
 	void sendNumeric(Client &client, int numeric, const std::string_view channel, const std::string_view msg);
-	void sendResponse(std::string msg, int fd);
-	std::string formatPrefix(const Client &client) const;
+	void clientErr(std::string msg, int fd);
+	std::string getClientHost(int clientFd);
+	std::string formatPrefix(const Client &client);
 
 	// Client disconnection, cleanup
 	void disconnectClient(int fd, std::string_view reason);

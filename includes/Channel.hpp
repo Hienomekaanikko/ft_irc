@@ -19,6 +19,7 @@ public:
 
 	void addClient(Client *client);
 	void addOperator(Client *client);
+	void inviteUser(Client *client);
 	void banUser(Client *client);
 	bool isOperator(Client *client) const;
 	bool isMember(Client *client);
@@ -51,6 +52,7 @@ public:
 	bool isEmpty() const;
 	bool isInvited(Client* client) const;
 	bool isBanned(Client* client) const;
+	bool isTopicProtected() const;
 	
 	Client *findClientByNickname(const std::string &nickname) const;
 

@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/20 15:52:45 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/25 16:53:42 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/11/27 15:24:50 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -134,6 +134,7 @@ void Channel::setUserlimit(const std::string limit) {
 
 void Channel::unsetUserlimit() {
 	_userLimit = -1;
+	_limitSet = false;
 	std::cout << "User limit was unset" << std::endl;
 }
 
@@ -146,6 +147,8 @@ bool Channel::UserlimitSet() const {
 }
 
 // Invite handling
+
+void Channel::inviteUser(Client *client) { _invited.insert(client); }
 
 void Channel::setInviteOnly() { _inviteOnly = true; }
 
@@ -180,7 +183,6 @@ void Channel::setMode(const std::vector<std::string_view>& params)
 			action = c;
 			continue;
 		}
-
 		if (flags.find(c) == std::string::npos)
 			throw errs { 472, std::string(1, c) + " :is unknown mode char to me" };
 		bool adding = (action == '+');
@@ -213,7 +215,6 @@ void Channel::setMode(const std::vector<std::string_view>& params)
 }
 
 // Password handling
-
 std::string Channel::getPassword() const { return _password; }
 bool Channel::PasswordRequired() const { return _passwordRequired; }
 
@@ -223,12 +224,11 @@ void Channel::setPassword(const std::string& password) {
 	}
 	_password = password;
 	_passwordRequired = true;
-	std::cout << "Channel password was set to: " << password << std::endl;
 }
 
 void Channel::unsetPassword() {
 	_password = "";
-	std::cout << "Channel password was disabled" << std::endl;
+	_passwordRequired = false;
 }
 
 // Topic handling
@@ -237,3 +237,4 @@ void Channel::setTopicProtection() { _topicProtected = true; }
 void Channel::unsetTopicProtection() { _topicProtected = false; }
 const std::string& Channel::getTopic() const { return _topic; }
 void Channel::setTopic(const std::string& topic) { _topic = topic; }
+bool Channel::isTopicProtected() const { return _topicProtected; }

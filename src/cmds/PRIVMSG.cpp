@@ -1,5 +1,4 @@
 #include "Server.hpp"
-
 #include <iostream>
 #include <iomanip>
 #include <sstream>
@@ -45,8 +44,8 @@ void Server::handlePRIVMSG(Client &client, const std::vector<std::string_view> &
 			return;
 		}
 		// Broadcast to everyone except sender (should probably add the getHostname() but i dont fully understand what it means yet.)
-		std::string prefix = ":" + formatPrefix(client) + "!";
-		prefix += client.getUsername() + "@"; //+ client.getHostname();
+		std::string prefix = ":" + formatPrefix(client) + "!~";
+		prefix += client.getUsername() + "@" + getClientHost(client.getFd()); //+ client.getHostname();
 
 		std::string message = prefix + " PRIVMSG " + target + " :" + msg + "\r\n";
 
@@ -62,8 +61,8 @@ void Server::handlePRIVMSG(Client &client, const std::vector<std::string_view> &
 			return;
 		}
 
-		std::string prefix = ":" + formatPrefix(client) + "!";
-		prefix += client.getUsername() + "@"; //+ client.getHostname();
+		std::string prefix = ":" + formatPrefix(client) + "!~";
+		prefix += client.getUsername() + "@" + getClientHost(client.getFd()); //+ client.getHostname();
 
 		//same thing here (should probably add the getHostname() but i dont fully understand what it means yet.)
 		std::string message = prefix + " PRIVMSG " + target + " :" + msg + "\r\n";
@@ -71,6 +70,7 @@ void Server::handlePRIVMSG(Client &client, const std::vector<std::string_view> &
 		sendTo(*targetClient, message);
 	}
 }
+
 
 Client* Server::findClientByNick(const std::string &nick) {
 	for (auto &pair : _clients) {
