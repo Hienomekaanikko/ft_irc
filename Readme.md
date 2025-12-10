@@ -1,15 +1,13 @@
 # ft_irc
 
-The idea of the project was to create a lightweight IRC server and to implement a functional subset of the IRC protocol (RFC 1459).
+So ft_irc was a whole bunch of new stuff for me. The idea of the project was to create a lightweight IRC server and to implement a functional subset of the IRC protocol (RFC 1459).
 This allows multiple clients to communicate in real time.
-
-We used **Irssi** as a reference client.
 
 ---
 
 ## 🚀 Features
 
-The mandatory core of an IRC server:
+The mandatory core of an IRC server (we didnt handle absolutely everything as it wasn't required):
 
 * Multi-client support (with poll() function)
 * Nickname management (`NICK`)
