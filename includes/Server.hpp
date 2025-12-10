@@ -2,13 +2,14 @@
 
 #include "Client.hpp"
 #include "Channel.hpp"
-
 #include <vector>
 #include <string_view>
 #include <unordered_map>
 #include <cstddef>
 #include <poll.h>
 #include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 
 struct errs {
 	int num;
@@ -20,7 +21,6 @@ public:
 	Server(int port, const std::string &password);
 	~Server();
 
-	// Disabling copy constructor and assignment operator, 1 server only
 	Server(const Server &other) = delete;
 	Server &operator=(const Server &other) = delete;
 
@@ -40,19 +40,19 @@ public:
 	void handleCAP(Client &client, const std::vector<std::string_view> &params);
 	void handleKICK(Client &client, const std::vector<std::string_view> &params);
 	void handleINVITE(Client &client, const std::vector<std::string_view> &params);
-	void _sendResponse(std::string response, int fd);
 	
 private:
 	static const int 				BUFFER_SIZE = 1024;
 	int 							_port;
+	int								_channelCount;
 	std::string 					_password;
 	std::string 					_serverName{"ft_irc_server"};
-	int 							_serverFd{-1}; 	// Listening socket file descriptor
+	int 							_serverFd{-1};
 	struct sockaddr_in 				_address{};
 	socklen_t 						_addrLen;
-	std::vector<pollfd> 			_fds;	  		// index 0 = server
-	std::unordered_map<int, Client> _clients;  		// fd -> Client
-	std::unordered_map<std::string, Channel> _channels; // channel name -> Channel
+	std::vector<pollfd> 			_fds;
+	std::unordered_map<int, Client> _clients;
+	std::unordered_map<std::string, Channel> _channels;
 	bool							_running{false};
 	bool							_wasRegistered{false};
 	

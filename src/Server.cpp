@@ -1,5 +1,4 @@
 #include "Server.hpp"
-
 #include <iostream>
 #include <iomanip>
 #include <sstream>
@@ -10,11 +9,14 @@
 #include <fcntl.h>
 #include <algorithm>
 #include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 
 /// Constructor ///
 Server::Server(int port, const std::string &password)
 	: _port(port), _password(password), _addrLen(sizeof(_address))
 {
+	_channelCount = 0;
 	initSocket();
 }
 
@@ -44,22 +46,17 @@ void Server::shutdown()
 	std::cout << "\nShutting down server..." << std::endl;
 	_running = false;
 
-	// Disconnect all clients
 	std::vector<int> fds;
 	fds.reserve(_clients.size());
 	for (std::unordered_map<int, Client>::iterator it = _clients.begin(); it != _clients.end(); ++it)
 		fds.push_back(it->first);
 	for (int fd : fds)
 		disconnectClient(fd, "Server shutting down");
-
-	// Close server socket
 	if (_serverFd >= 0)
 	{
 		close(_serverFd);
 		_serverFd = -1;
 	}
-
-	// Cleanup containers
 	_fds.clear();
 	_clients.clear();
 
@@ -84,8 +81,8 @@ void Server::mainLoop()
 			if (errno == EINTR)
 			{
 				if (!_running)
-					break; // Exit loop if server is shutting down
-				continue;  // Otherwise, continue polling
+					break;
+				continue;
 			}
 			throw std::runtime_error("Poll failed: " + std::string(strerror(errno)));
 		}
@@ -113,7 +110,11 @@ void Server::mainLoop()
 
 /*
 ** Initialize server socket
-** Sets up the socket, binds it to the specified port, and starts listening for connections
+** Sets up the socket
+** Set socket to non-blocking mode
+** Set socket options to reuse address
+** Bind the socket to the specified port
+** Start listening for connections
 */
 void Server::initSocket()
 {
@@ -121,7 +122,6 @@ void Server::initSocket()
 	if (_serverFd < 0)
 		throw std::runtime_error("Socket creation failed: " + std::string(strerror(errno)));
 
-	// Set socket to non-blocking mode
 	if (::fcntl(_serverFd, F_SETFL, O_NONBLOCK) < 0)
 		throw std::runtime_error("Set non-blocking mode failed: " + std::string(strerror(errno)));
 
@@ -142,7 +142,6 @@ void Server::initSocket()
 	std::cout << "IRC Server is now listening on port " << _port
 			  << " (password: " << _password << ")" << std::endl;
 
-	// Add server fd to poll fds
 	pollfd serverPollFd;
 	serverPollFd.fd = _serverFd;
 	serverPollFd.events = POLLIN;
@@ -157,7 +156,6 @@ void Server::initSocket()
 */
 void Server::handleNewConnection()
 {
-	// Accept new client connection
 	_addrLen = sizeof(_address);
 
 	int clientFd = ::accept(_serverFd, reinterpret_cast<struct sockaddr *>(&_address), &_addrLen);
@@ -171,13 +169,8 @@ void Server::handleNewConnection()
 		std::perror("Accept failed");
 		return;
 	}
-
-	// Set socket to non-blocking mode
 	if (::fcntl(clientFd, F_SETFL, O_NONBLOCK) < 0)
 		throw std::runtime_error("Set non-blocking mode failed: " + std::string(strerror(errno)));
-
-	std::cout << "New client connected: fd = " << clientFd << std::endl;
-
 	pollfd clientPollFd;
 	clientPollFd.fd = clientFd;
 	clientPollFd.events = POLLIN;
@@ -209,25 +202,23 @@ void Server::handleClientRead(std::size_t index)
 			std::string &readBuffer = client.getReadBuffer();
 			std::size_t pos;
 
-			// Process complete lines
 			while ((pos = readBuffer.find("\r\n")) != std::string::npos)
 			{
 				std::string line = readBuffer.substr(0, pos);
-				readBuffer.erase(0, pos + 2); // Remove processed line
+				readBuffer.erase(0, pos + 2);
 				processLine(clientFd, line);
 				if (_clients.find(clientFd) == _clients.end()) {
-					return; // Client disconnected during processing
+					return;
 				}
 			}
 		}
 		else if (bytes == 0)
 		{
-			// Client disconnected
 			disconnectClient(clientFd, "EOF");
 			return;
 		}
 		else
-		{
+		{ 
 			if (errno == EWOULDBLOCK || errno == EAGAIN)
 				break;
 
@@ -260,14 +251,12 @@ void Server::handleClientWrite(std::size_t index)
 		else if (sent < 0)
 		{
 			if (errno == EWOULDBLOCK || errno == EAGAIN)
-				break; // socket not ready, try later
+				break;
 			std::perror("send");
 			disconnectClient(clientFd, "Send error");
 			return;
 		}
 	}
-
-	// Fix: remove only POLLOUT instead of overwriting all events
 	if (!client.dataToWrite())
 		_fds[index].events &= ~POLLOUT;
 }
@@ -275,7 +264,6 @@ void Server::handleClientWrite(std::size_t index)
 
 /////////////////////////////////////////////////////////////////////////////////////////
 /// Command processing and message sending ///
-
 /*
 ** Process a complete line received from a client
 ** Parses the command and dispatches to the appropriate handler
@@ -295,9 +283,6 @@ void Server::processLine(int clientFd, std::string_view line)
 	for (char &c : upper)
 		c = std::toupper(static_cast<unsigned char>(c));
  
-	std::cout << "[DEBUG] Received command: " << upper << " from client " << client.getNickname() << std::endl;
-	
-	// commands allowed BEFORE registration
 	bool preRegAllowed = (upper == "PASS" ||
 						  upper == "NICK" ||
 						  upper == "USER" ||
@@ -307,7 +292,7 @@ void Server::processLine(int clientFd, std::string_view line)
 
 	if (!client.isRegistered() && !preRegAllowed)
 	{
-		sendNumeric(client, 451, ":You have not registered"); // ERR_NOTREGISTERED
+		sendNumeric(client, 451, ":You have not registered");
 		return;
 	}
 	if (upper == "PASS")
@@ -336,23 +321,57 @@ void Server::processLine(int clientFd, std::string_view line)
 		handlePART(client, cmd.params);
 	else if (upper == "TOPIC")
 		handleTOPIC(client, cmd.params);
-	// commands requested by irssi
-	else if (upper == "CAP")
-		return;
-		// handleCAP(client, cmd.params);
-	else if (upper == "WHOIS")
+	else if (upper == "CAP" || upper == "WHO" || upper == "WHOIS")
 		return;
 	else
 		sendNumeric(client, 421, std::string(cmd.command), "Unknown command");
 }
 
 /*
-** Handle CAP command to cope with irssi CAP requests
+** Parse a command line into command and parameters
+** Returns a ParsedCommand struct, containing the command and a vector of parameters
 */
-void Server::handleCAP(Client &client, const std::vector<std::string_view> &params)
+Server::ParsedCommand Server::parseCommand(std::string_view line)
 {
-	(void)client;
-	(void)params;
+	ParsedCommand result;
+
+	while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front())))
+		line.remove_prefix(1);
+
+	auto spacePos = line.find(' ');
+	if (spacePos == std::string_view::npos)
+	{
+		result.command = line;
+		return result;
+	}
+	result.command = line.substr(0, spacePos);
+	line.remove_prefix(spacePos + 1);
+
+	while (!line.empty())
+	{
+		while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front())))
+			line.remove_prefix(1);
+		if (line.empty())
+			break;
+		if (line.front() == ':')
+		{
+			line.remove_prefix(1);
+			result.params.push_back(line);
+			break;
+		}
+		auto nextSpace = line.find(' ');
+		if (nextSpace == std::string_view::npos)
+		{
+			result.params.push_back(line);
+			break;
+		}
+		else
+		{
+			result.params.push_back(line.substr(0, nextSpace));
+			line.remove_prefix(nextSpace + 1);
+		}
+	}
+	return result;
 }
 
 /*
@@ -390,69 +409,13 @@ std::string Server::formatPrefix(const Client &client)
 }
 
 /*
-** Parse a command line into command and parameters
-** Returns a ParsedCommand struct, containing the command and a vector of parameters
-*/
-Server::ParsedCommand Server::parseCommand(std::string_view line)
-{
-	ParsedCommand result;
-
-	// Trim leading spaces
-	while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front())))
-		line.remove_prefix(1);
-
-	// Extract command
-	auto spacePos = line.find(' ');
-	if (spacePos == std::string_view::npos)
-	{
-		result.command = line;
-		return result;
-	}
-	result.command = line.substr(0, spacePos);
-	line.remove_prefix(spacePos + 1);
-
-	// Params extraction
-	while (!line.empty())
-	{
-		// Trim leading spaces
-		while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front())))
-			line.remove_prefix(1);
-		if (line.empty())
-			break;
-		if (line.front() == ':')
-		{
-			line.remove_prefix(1);
-			result.params.push_back(line);
-			break;
-		}
-		auto nextSpace = line.find(' ');
-		if (nextSpace == std::string_view::npos)
-		{
-			result.params.push_back(line);
-			break;
-		}
-		else
-		{
-			result.params.push_back(line.substr(0, nextSpace));
-			line.remove_prefix(nextSpace + 1);
-		}
-	}
-	// No command was found
-	return result;
-}
-
-/*
 ** Send a message to a client
 */
 void Server::sendTo(Client &client, const std::string &message)
 {
 	if (client.getFd() < 0)
-		return; // invalid socket
-
-	// Append to the client's write buffer
+		return;
 	client.queueMsg(message);
-
-	// Ensure POLLOUT is set for this client in the server's poll fds
 	for (std::size_t i = 0; i < _fds.size(); ++i)
 	{
 		if (_fds[i].fd == client.getFd())
@@ -463,11 +426,6 @@ void Server::sendTo(Client &client, const std::string &message)
 	}
 }
 
-void Server::clientErr(std::string response, int fd)
-{
-	if(send(fd, response.c_str(), response.size(), 0) == -1)
-		std::cerr << "Response send() faild" << std::endl;
-}
 /*
 ** Send a message to a channel
 */
@@ -511,7 +469,7 @@ void Server::disconnectClient(int fd, std::string_view reason)
 {
 	auto it = _clients.find(fd);
 	if (it == _clients.end())
-		return; // Client not found
+		return;
 
 	Client &client = it->second;
 	std::string nickname = client.hasNickname() ? client.getNickname() : "<unknown>";
@@ -519,67 +477,60 @@ void Server::disconnectClient(int fd, std::string_view reason)
 	std::cout << "Disconnecting client [" << nickname << "] fd=" << fd
 			  << " reason: " << reason << std::endl;
 
-	// Close the socket and remove from clients map and fds vector
 	::close(fd);
 
-	// Remove from poll fds
 	auto newEnd = std::remove_if(_fds.begin(), _fds.end(),
 								 [fd](const pollfd &pfd)
 								 { return pfd.fd == fd; });
 	_fds.erase(newEnd, _fds.end());
 
 	std::vector<std::string> emptyChannels;
-	// Remove client from all channels
 	for (auto &channelPair : _channels)
 	{
 		Channel &channel = channelPair.second;
 		try
 		{
-			channel.removeClient(&client);
+			channel.removeClient(client.getNickname());
 		}
-		catch (const std::runtime_error &)
+		catch (const errs &)
 		{
-			// Client was not in this channel, ignore
 		}
 		if (channel.isEmpty())
 			emptyChannels.push_back(channel.getChannelName());
 	}
 
-	// Remove from clients map
 	_clients.erase(it);
 
-	// Clean up empty channels
 	for (const std::string &chanName : emptyChannels)
 		_channels.erase(chanName);
-
 	std::cout << "Client " << nickname << " disconnected successfully." << std::endl;
 }
 
-
-#include <netdb.h> // For getnameinfo
-#include <arpa/inet.h> // For inet_ntop
-
+/*
+** Get the client's host name
+** Returns "unknown" if failed
+*/
 std::string Server::getClientHost(int clientFd)
 {
-    struct sockaddr_storage addr;
-    socklen_t addrLen = sizeof(addr);
+	struct sockaddr_storage addr;
+	socklen_t addrLen = sizeof(addr);
 
-    // Get the client's address
-    if (getpeername(clientFd, reinterpret_cast<struct sockaddr *>(&addr), &addrLen) < 0) {
-        std::cerr << "getpeername failed: " << strerror(errno) << std::endl;
-        return "unknown";
-    }
+	if (getpeername(clientFd, reinterpret_cast<struct sockaddr *>(&addr), &addrLen) < 0)
+	{
+		std::cerr << "getpeername failed: " << strerror(errno) << std::endl;
+		return "unknown";
+	}
 
-    char host[NI_MAXHOST];
-    char service[NI_MAXSERV];
+	char host[NI_MAXHOST];
+	char service[NI_MAXSERV];
 
-    // Resolve the address to a hostname or IP
-    if (getnameinfo(reinterpret_cast<struct sockaddr *>(&addr), addrLen,
-                    host, sizeof(host), service, sizeof(service),
-                    NI_NUMERICSERV) == 0) {
-        return std::string(host); // Return the resolved hostname or IP
-    } else {
-        std::cerr << "getnameinfo failed: " << strerror(errno) << std::endl;
-        return "unknown";
-    }
+	if (getnameinfo(reinterpret_cast<struct sockaddr *>(&addr), addrLen,
+					host, sizeof(host), service, sizeof(service),
+					NI_NUMERICSERV) == 0)
+		return std::string(host); 
+	else
+	{
+		std::cerr << "getnameinfo failed: " << strerror(errno) << std::endl;
+		return "unknown";
+	}
 }

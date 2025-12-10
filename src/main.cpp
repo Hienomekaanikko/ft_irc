@@ -5,25 +5,17 @@
 #include <string>
 #include <csignal>
 
+static void handleSignal(int signal);
+static bool parsePort(const char *s, int &portOut);
 
+/* Global Server pointer */
 static Server* g_server = 0;
 
-static void handleSignal(int signal)
-{
-	if (signal == SIGINT && g_server)
-		g_server->shutdown();
-}
-
-static bool parsePort(const char *s, int &portOut)
-{
-	char *end = nullptr;
-	long p = std::strtol(s, &end, 10);
-	if (*s == '\0' || *end != '\0' || p < 1 || p > 65535)
-		return false;
-	portOut = static_cast<int>(p);
-	return true;
-}
-
+/* 
+** Main
+** Create server and run it
+** If signal SIGINT is received, shutdown server
+*/
 int main(int argc, char **argv)
 {
 	if (argc != 3)
@@ -46,6 +38,7 @@ int main(int argc, char **argv)
 		Server server(port, password);
 		g_server = &server;
 		std::signal(SIGINT, handleSignal);
+		std::signal(SIGPIPE, SIG_IGN);
 		server.run();
 		g_server = 0;
 	}
@@ -56,4 +49,22 @@ int main(int argc, char **argv)
 	}
 
 	return EXIT_SUCCESS;
+}
+
+/* Parse port */
+static bool parsePort(const char *s, int &portOut)
+{
+	char *end = nullptr;
+	long p = std::strtol(s, &end, 10);
+	if (*s == '\0' || *end != '\0' || p < 1 || p > 65535)
+		return false;
+	portOut = static_cast<int>(p);
+	return true;
+}
+
+/* Signal handler SIGINT */
+static void handleSignal(int signal)
+{
+	if (signal == SIGINT && g_server)
+		g_server->shutdown();
 }

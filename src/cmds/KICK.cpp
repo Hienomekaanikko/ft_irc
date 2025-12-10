@@ -6,7 +6,7 @@
 /*   By: msuokas <msuokas@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/27 14:48:52 by msuokas           #+#    #+#             */
-/*   Updated: 2025/11/27 14:48:53 by msuokas          ###   ########.fr       */
+/*   Updated: 2025/12/08 13:04:06 by msuokas          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -55,8 +55,6 @@ void Server::handleKICK(Client &client, const std::vector<std::string_view> &par
         sendNumeric(client, 441, targetNick + " " + channelName + " :They aren't on that channel");
         return;
     }
-
-    // Broadcast KICK message
     std::ostringstream kickMsg;
     kickMsg << ":" << client.getNickname() << "!" 
             << client.getUsername() << "@" << getClientHost(client.getFd())
@@ -64,13 +62,12 @@ void Server::handleKICK(Client &client, const std::vector<std::string_view> &par
     if (!comment.empty())
         kickMsg << " :" << comment;
     kickMsg << "\r\n";
-    
+    sendTo(*target, kickMsg.str());
+    chan.removeClient(target->getNickname());
     sendToChannel(chan, kickMsg.str(), nullptr);
-
-    // Remove user from channel
-    chan.removeClient(target);
     
     if (chan.isEmpty()) {
         _channels.erase(channelName);
+        _channelCount--;
     }
 }

@@ -2,10 +2,18 @@
 
 /*
 ** Handle USER command
-** Sets the client's username and fullname
+** Validates parameters
+** Checks if client is already registered
+** Sets client's username and fullname
+** Updates client state
 */
 void Server::handleUSER(Client &client, const std::vector<std::string_view> &params)
 {
+	if (!client.hasPassword())
+	{
+		sendNumeric(client, 451, "You have not registered");
+		return;
+	}
 	if (params.size() < 4)
 	{
 		sendNumeric(client, 461, "USER :Not enough parameters");

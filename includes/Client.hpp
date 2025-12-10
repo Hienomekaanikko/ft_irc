@@ -29,6 +29,7 @@ public:
 	const std::string &getNickname() const noexcept;
 	const std::string &getUsername() const noexcept;
 	const std::string &getFullname() const noexcept;
+	int getChannelCount() const;
 
 	// Read line buffer
 	std::string 		&getReadBuffer() noexcept;
@@ -42,6 +43,8 @@ public:
 	void setNickname(std::string nickname);
 	void setUsername(std::string username);
 	void setFullname(std::string fullname);
+	void incrementChannelCount();
+	void decrementChannelCount();
 
 	// Client state information
 	bool hasPassword() const noexcept;
@@ -58,6 +61,7 @@ public:
 
 private:
 	int 		_fd = -1;
+	int			_channelCount;
 	std::string _readBuffer;
 	std::string _writeBuffer;
 

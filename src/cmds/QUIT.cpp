@@ -2,6 +2,8 @@
 
 /*
 ** Handle QUIT command
+** Validates parameters
+** Disconnects client
 */
 void Server::handleQUIT(Client &client, const std::vector<std::string_view> &params)
 {

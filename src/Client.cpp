@@ -1,7 +1,7 @@
 #include "Client.hpp"
 
 // Constructor
-Client::Client(int fd) : _fd(fd) {}
+Client::Client(int fd) : _fd(fd), _channelCount(0) {}
 
 // Getters
 int Client::getFd() const noexcept { return _fd; }
@@ -20,6 +20,8 @@ const std::string& Client::getReadBuffer() const noexcept { return _readBuffer; 
 std::string& Client::getWriteBuffer() noexcept { return _writeBuffer; }
 
 const std::string& Client::getWriteBuffer() const noexcept { return _writeBuffer; }
+
+int Client::getChannelCount() const { return _channelCount; }
 
 // Setters
 void Client::setFd(int fd) noexcept { _fd = fd; }
@@ -44,6 +46,9 @@ void Client::setFullname(std::string fullname)
 	_fullname = fullname;
 	_hasFullname = true;
 }
+
+void Client::incrementChannelCount() { _channelCount++; }
+void Client::decrementChannelCount() { _channelCount--; }
 
 void Client::setHasPassword(bool hasPassword) noexcept { _hasPassword = hasPassword; }
 

@@ -2,12 +2,11 @@
 
 /*
 ** Handle PASS command
+** Validates parameters
 ** Verifies the password and updates client state
 */
 void Server::handlePASS(Client &client, const std::vector<std::string_view> &params)
 {
-	// if (client.isRegistered())
-	// 	return;
 	if (client.isRegistered())
 	{
 		sendNumeric(client, 462, "You may not reregister");
