@@ -1,13 +1,15 @@
 # ft_irc
 
-So ft_irc was a whole bunch of new stuff for me. The idea of the project was to create a lightweight IRC server and to implement a functional subset of the IRC protocol (RFC 1459).
+The idea of the project was to create a lightweight IRC server and to implement a functional subset of the IRC protocol (RFC 1459).
 This allows multiple clients to communicate in real time.
+
+We used **Irssi** as a reference client.
 
 ---
 
-## 🚀 Features
+## Features
 
-The mandatory core of an IRC server (we didnt handle absolutely everything as it wasn't required):
+The mandatory core of an IRC server:
 
 * Multi-client support (with poll() function)
 * Nickname management (`NICK`)
@@ -26,7 +28,7 @@ The mandatory core of an IRC server (we didnt handle absolutely everything as it
 
 ---
 
-## 🔧 Installation
+## Installation
 
 ### 1. Clone the repository
 
@@ -45,7 +47,7 @@ This produces an executable, called `ircserv`.
 
 ---
 
-## ▶️ Running the server
+## Running the server
 
 Input arguments required:
 
@@ -64,7 +66,7 @@ Example:
 
 ---
 
-## 💬 Connecting with irssi (reference client)
+## Connecting with irssi (reference client)
 
 ### Start irssi
 
@@ -102,7 +104,7 @@ Private message:
 
 ---
 
-## 📡 Basic IRC workflow (as used by irssi)
+## Basic IRC workflow (as used by irssi)
 
 When connecting, irssi sends:
 
@@ -116,7 +118,7 @@ ft_irc must wait until both `NICK` and `USER` are received before registering th
 
 ---
 
-## 📝 Notes
+## Notes
 
 * ft_irc is not expected to fully implement the entire IRC specification.
 * We tested primarily with **irssi**, but also compatible with other clients (weechat, netcat, HexChat).
