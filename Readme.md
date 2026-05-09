@@ -1,3 +1,5 @@
+For this project AI was used for creating the readme. (Claude)
+
 # ft_irc
 
 An IRC server implementing a functional subset of the IRC protocol (RFC 1459), written in C++. Supports multiple simultaneous clients, channels, operator privileges, and channel modes — all over a single non-blocking socket using `poll()`.
