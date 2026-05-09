@@ -1,128 +1,106 @@
 # ft_irc
 
-The idea of the project was to create a lightweight IRC server and to implement a functional subset of the IRC protocol (RFC 1459).
-This allows multiple clients to communicate in real time.
+An IRC server implementing a functional subset of the IRC protocol (RFC 1459), written in C++. Supports multiple simultaneous clients, channels, operator privileges, and channel modes — all over a single non-blocking socket using `poll()`.
 
-We used **Irssi** as a reference client.
-
----
-
-## Features
-
-The mandatory core of an IRC server:
-
-* Multi-client support (with poll() function)
-* Nickname management (`NICK`)
-* User registration (`USER`)
-* Private messages (`PRIVMSG`)
-* Channels (`JOIN`, `PART`, channel topic, user lists)
-* Setting channel modes (`+i`, `+t`, `+k`, `+o`, `+l`)
-* Removing channel modes (`-i`, `-t`, `-k`, `-o`, `-l`)
-* Operators (`KICK`, `MODE`)
-* Graceful disconnection (`QUIT`)
-* Proper numeric replies following IRC conventions (handled with the two different send_numeric() functions for different cases)
-* Password protection on server (`PASS`)
-* Channel key, invite-only channels
-* Ping/Pong handling
-* File transfer
+Tested with **irssi**, **weechat**, **HexChat**, and **netcat**.
 
 ---
 
-## Installation
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/Hienomekeaanikko/ft_irc.git
-cd ft_irc
-```
-
-### 2. Build the server
-
-```bash
-make
-```
-
-This produces an executable, called `ircserv`.
-
----
-
-## Running the server
-
-Input arguments required:
+## Usage
 
 ```
 ./ircserv <port> <password>
 ```
 
-Example:
-
-```bash
-./ircserv 6667 pass
+```
+./ircserv 6667 mypassword
 ```
 
-* **port** — Any valid TCP port (usually 6667 for IRC)
-* **password** — The password clients must use with the `PASS` command before registering
+- **port** — TCP port to listen on (IRC convention is 6667)
+- **password** — clients must send `PASS <password>` before registering
 
 ---
 
-## Connecting with irssi (reference client)
-
-### Start irssi
+## Connecting with irssi
 
 ```bash
 irssi
-```
-
-### Connect to the server
-
-Inside the irssi prompt:
-
-```bash
-/connect localhost port password
-```
-
-### Join a channel
-
-```bash
+/connect localhost 6667 mypassword
 /join #channel
-```
-
-### Send a message
-
-Channel message:
-
-```bash
-Hello everyone!
-```
-
-Private message:
-
-```bash
 /msg OtherUser Hey there!
 ```
 
 ---
 
-## Basic IRC workflow (as used by irssi)
+## Supported Commands
 
-When connecting, irssi sends:
+| Command | Description |
+|---------|-------------|
+| `PASS` | Authenticate with the server password |
+| `NICK` | Set or change nickname |
+| `USER` | Set username and real name (completes registration) |
+| `PING` | Keepalive — server responds with PONG |
+| `JOIN` | Join a channel (creates it if it doesn't exist) |
+| `PART` | Leave a channel |
+| `PRIVMSG` | Send a message to a channel or user |
+| `TOPIC` | Get or set a channel topic |
+| `KICK` | Remove a user from a channel (operators only) |
+| `INVITE` | Invite a user to an invite-only channel |
+| `MODE` | Set or unset channel modes (operators only) |
+| `QUIT` | Disconnect from the server |
 
-```
-PASS <password>
-NICK <nickname>
-USER <username> 0 * :<realname>
-```
+### Channel Modes (`MODE`)
 
-ft_irc must wait until both `NICK` and `USER` are received before registering the client and sending the welcome numeric replies.
+| Mode | Description |
+|------|-------------|
+| `+i` / `-i` | Invite-only — only invited users may join |
+| `+t` / `-t` | Topic protection — only operators may change topic |
+| `+k` / `-k` | Channel key (password) |
+| `+o` / `-o` | Grant or revoke operator status |
+| `+l` / `-l` | User limit — cap the number of members |
 
 ---
 
-## Notes
+## How It Works
 
-* ft_irc is not expected to fully implement the entire IRC specification.
-* We tested primarily with **irssi**, but also compatible with other clients (weechat, netcat, HexChat).
+**Single-threaded, non-blocking I/O with `poll()`**
+
+The server uses one `poll()` loop to watch all connected file descriptors simultaneously — no threads, no blocking. When a client's fd is readable, incoming data is appended to that client's read buffer. When a complete `\r\n`-terminated line is present, it is parsed and dispatched to the appropriate command handler.
+
+**Client registration state machine**
+
+A client goes through registration states before being allowed to interact:
+1. `PASS` must be received first (if server has a password)
+2. Both `NICK` and `USER` must be received
+3. Only then does the server send welcome numerics (001–004) and mark the client as registered
+
+**Channel model**
+
+Each `Channel` tracks its members, operators, and invited users as pointer sets. It owns its own mode flags, topic, password, and user limit. When a channel becomes empty it is destroyed. Operator actions (KICK, MODE, TOPIC when `+t`) are gated behind an `isOperator()` check.
+
+**Numeric replies**
+
+Responses follow IRC numeric conventions. Two `sendNumeric()` overloads handle single-target and channel-target replies, formatting messages as `:servername NNN nickname <target> :<message>\r\n`.
 
 ---
 
-Well thats about it! Was a fun project for sure and taught a bunch about networking.
+## Structure
+
+| Path | Responsibility |
+|------|---------------|
+| `src/main.cpp` | Entry point, argument validation, signal handling |
+| `src/Server.cpp` | Socket setup, `poll()` loop, command dispatch, client lifecycle |
+| `src/Client.cpp` | Per-client state: buffers, identity, registration flags |
+| `src/Channel.cpp` | Channel state: members, operators, modes, topic |
+| `src/cmds/` | One file per IRC command handler |
+| `includes/` | Header files for all three classes |
+
+---
+
+## Building
+
+```
+make        # builds ./ircserv
+make re     # rebuild from scratch
+make fclean # remove objects and binary
+```
